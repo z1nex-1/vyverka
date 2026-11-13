@@ -287,6 +287,16 @@ def identity(item: Item, offer: Offer) -> tuple[float, list[tuple[str, str]]]:
             if rule.get("when") and not re.search(rule["when"], item_text, re.I):
                 continue
             return 0.0, [("excluded_rule", rule["reason"])]
+    want_no = _sizes(item.name)
+    got_no = _sizes(offer.title)
+    if want_no and got_no and not want_no & got_no:
+        return 0.0, [("other_model", f"другой типоразмер: №{', '.join(sorted(got_no))}, в ТЗ №{', '.join(sorted(want_no))}")]
+    own = {re.sub(r"[\s\-]", "", c.lower()) for c in [item.model or "", *item.codes] if c}
+    # после «для» идут совместимые устройства, это не другие товары в строке
+    named = re.sub(r"\bдля\b[^;]*", " ", offer.title, flags=re.I)
+    foreign = {c.lower().replace("-", "") for c in _CODE.findall(named)} - own
+    if len(foreign) >= 4:
+        return 0.0, [("bundle", f"сборная позиция: в одной строке {plural(len(foreign), 'другой артикул', 'других артикула', 'других артикулов')}, цена не относится к товару из ТЗ")]
     if mode == "strict" and item.model:
         model = re.sub(r"\s+", "", item.model.lower())
         flat = re.sub(r"\s+", "", text)
@@ -331,6 +341,16 @@ def identity(item: Item, offer: Offer) -> tuple[float, list[tuple[str, str]]]:
     head = next(iter(_ordered_tokens(item.name)), None)
     if head and head[:5] not in {t[:5] for t in _ordered_tokens(offer.title)[:3]}:
         return 0.0, [("other_product", f"другой товар: «{offer.title[:40]}» — не «{head}»")]
+    first = (_ordered_tokens(offer.title) or [""])[0]
+    if head and first[:5] != head[:5] and re.search(r"\bдля\b[^,;]{0,40}" + re.escape(head[:5]), offer.title.lower()):
+        return 0.0, [("accessory", f"комплектующие или расходник для товара, а не сам «{head}»")]
+    if item.brand and item.model and item.brand.lower() in text:
+        if not re.search(r"(?<![a-zа-я0-9])" + re.escape(item.model.lower()) + r"(?![a-zа-я0-9])", text):
+            named = [n.strip() for n in re.findall(r"[«\"“]([^»\"”]{2,30})[»\"”]", offer.title)]
+            other = next((n for n in named if item.brand.lower() not in n.lower()), None)
+            if other:
+                return 0.0, [("other_model", f"другая модель: {item.brand} {other}, в ТЗ {item.brand} {item.model}")]
+            return 0.0, [("other_model", f"указан только товарный знак {item.brand}, модель {item.model} не названа")]
     score = min(1.0, sim * 1.2)
     if item.brand:
         if item.brand.lower() in text.translate(str.maketrans("", "")) or item.brand.lower().replace("copy", "сору") in text:
@@ -339,6 +359,19 @@ def identity(item: Item, offer: Offer) -> tuple[float, list[tuple[str, str]]]:
             reasons.append(("equivalent", f"эквивалент: марка не {item.brand}"))
             score *= 0.8
     return score, reasons
+
+
+_CODE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]{1,4}-?\d{3,}[A-Za-z0-9]*(?![A-Za-z0-9])")
+_SIZE = re.compile(r"№\s*(\d+(?:/\d+)?)((?:\s*(?:,|-|–|/|и)\s*\d+/\d+)*)")
+
+
+def _sizes(s: str) -> set[str]:
+    """Типоразмеры вида «№24/6, 26/6» или «№10» — у степлеров, скоб, бит и т. п. это разные товары."""
+    out: set[str] = set()
+    for m in _SIZE.finditer(s):
+        out.add(m.group(1))
+        out.update(re.findall(r"\d+/\d+", m.group(2)))
+    return out
 
 
 def _target_key(s: str, all_: bool = False) -> str | set[str] | None:

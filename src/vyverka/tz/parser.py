@@ -250,7 +250,13 @@ def _enrich(it: Item, block: str) -> None:
         words = latin[0].split()
         it.brand = words[0].capitalize() if words[0].isupper() else words[0]
         if len(words) > 1:
-            it.model = " ".join(words[1:])
+            rest = words[1:]
+            # «HP 59A CF259A»: второй код — артикул той же модели, а не продолжение её названия
+            if len(rest) > 1 and re.search(r"\d", rest[0]):
+                arts = [w for w in rest[1:] if len(w) >= 5 and re.search(r"\d", w) and re.search(r"[A-Za-z]", w)]
+                rest = [w for w in rest if w not in arts]
+                it.codes += [a for a in arts if a not in it.codes]
+            it.model = " ".join(rest)
         if it.manufacturer and it.manufacturer.lower() in latin[0].lower():
             it.brand = it.manufacturer
     it.name = re.split(r"\s+Производитель", it.name)[0].strip()

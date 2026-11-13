@@ -1,6 +1,7 @@
 from conftest import offer, req
 from vyverka.match import check, decide, interval
 from vyverka.models import Constraint, Item, Op, Requirement
+from vyverka.tz.parser import parse_text
 from vyverka.sources.base import text_pairs
 
 
@@ -69,3 +70,31 @@ def test_text_pairs_from_supplier_description():
     assert pairs["Чистота"] == "более 98%"
     assert pairs["Уровень эндотоксина"].startswith("менее 0,1")
     assert pairs["Форма"] == "лиофилизат"
+
+
+def test_free_text_stapler_rejects_staples_other_size_and_model():
+    item = parse_text("Степлер Brauberg Extra №24/6, 20 шт").items[0]
+    kw = dict(kind="contract")
+    assert decide(item, offer('Степлер №24/6, 26/6 до 30л BRAUBERG "Extra", серо-синий', 309.9, **kw)).included
+    staples = decide(item, offer("Скобы для степлера BRAUBERG №24/6, 1000 штук", 19, **kw))
+    assert staples.reasons[-1][0] == "accessory"
+    size = decide(item, offer("Степлер №10 BRAUBERG «Extra»", 180, **kw))
+    assert "другой типоразмер: №10" in size.reasons[-1][1]
+    other = decide(item, offer('Степлер №24/6, 26/6 BRAUBERG "SX-39", до 25 листов', 108, **kw))
+    assert "другая модель: Brauberg SX-39" in other.reasons[-1][1]
+
+
+def test_second_code_in_free_text_is_an_article():
+    item = parse_text("Картридж HP 59A CF259A, 5 шт").items[0]
+    assert item.model == "59A" and item.codes == ["CF259A"]
+    assert decide(item, offer("Картридж HP CF259A (59A) оригинальный", 9000, kind="contract")).included
+    assert decide(item, offer("Hewlett-Packard картридж 59A, (CF259A) для HP LaserJet Pro M404n, M428fdw, M304a",
+                              10400, kind="contract")).included
+
+
+def test_part_and_bundle_rows_excluded():
+    item = parse_text("Картридж HP 59A CF259A, 5 шт").items[0]
+    assert decide(item, offer("Картридж HP LJ CF259A, № 59A ракель", 11, kind="contract")).reasons[-1][1] \
+        == "запчасть к товару, а не сам товар"
+    bundle = decide(item, offer("Картриджи: HP CF259A; HP CE285A; HP Q2612A; HP CB436A; HP CE505A", 390, kind="contract"))
+    assert bundle.reasons[-1][0] == "bundle"
