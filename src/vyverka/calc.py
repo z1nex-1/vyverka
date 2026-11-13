@@ -96,7 +96,7 @@ def _finish(pool: dict[str, float], qty: float, limit: float, nd: int, steps: li
     mean, std, cv = stats(list(pool.values()))
     vals = list(pool.values())
     base = Calculation(status="ok", n=len(vals), prices=vals, offer_ids=list(pool), mean=round(mean, nd),
-                       std=round(std, nd), cv=round(cv, 2), minimum=min(vals), median=statistics.median(vals), steps=steps)
+                       std=round(std, nd), cv=round(cv, 2), minimum=min(vals), median=round(statistics.median(vals), nd), steps=steps)
     if cv > limit:
         base.status = "heterogeneous"
         base.message = (f"Совокупность цен неоднородна: V = {_pct(cv, 2)} % > {limit:g} %. "
