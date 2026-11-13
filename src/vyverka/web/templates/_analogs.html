@@ -1,0 +1,33 @@
+{% set est = r.estimate %}
+{% set offmap = {} %}{% for o in r.offers %}{% set _ = offmap.update({o.id: o}) %}{% endfor %}
+<div class="analogs">
+  <p class="an-sum">{{ r.analogs | length }} предложений в облаке: чем ближе к центру, тем больше похоже на позицию ТЗ.{% if est %} Оценка по аналогам — {{ est.value | money }}.{% endif %}</p>
+  <div class="an-grid">
+    <figure class="an-fig">{{ cloud(r) | safe }}
+      <figcaption><span class="lg lg-in"></span>в расчёте <span class="lg lg-near"></span>ближайшие аналоги <span class="lg lg-off"></span>прочие найденные</figcaption>
+    </figure>
+    <div class="an-side">
+      {% if est %}
+      <div class="an-est">
+        <p class="label">Оценка цены по аналогам, справочно</p>
+        <p class="an-num">{{ est.value | money }} <span>за {{ r.item.unit }}</span></p>
+        <p class="an-how">{{ est.method }}. Разброс соседей {{ est.low | money }} — {{ est.high | money }}, средняя близость {{ (est.similarity * 100) | round | int }} %.</p>
+        {% if est.deviation_pct is defined %}
+        <p class="an-check {{ 'ok' if est.deviation_pct | abs <= 25 else 'warn' }}">НМЦД за единицу {{ 'выше' if est.deviation_pct > 0 else 'ниже' }} оценки по аналогам на {{ est.deviation_pct | abs | num(1) }} %{% if est.deviation_pct | abs > 25 %} — проверьте выборку{% else %}, расчёт согласуется с рынком{% endif %}.</p>
+        {% else %}
+        <p class="an-check warn">Сопоставимых цен для обоснования мало. Оценка — ориентир для запроса коммерческих предложений; ближайшие аналоги можно принять в расчёт как однородные товары с вашим комментарием.</p>
+        {% endif %}
+      </div>
+      {% endif %}
+      <ol class="an-list">
+        {% for a in r.analogs[:6] %}{% set o = offmap[a.offer_id] %}{% set d = dec[a.offer_id] %}
+        <li class="{{ 'is-in' if d.included else 'is-out' }}">
+          <a href="#o-{{ anchor(o.id) }}"><b>{{ (a.similarity * 100) | round | int }} %</b> {{ o.title | truncate(70) }}</a>
+          <span class="an-meta">{{ ring_text[a.ring] }} · {{ o.source_title | truncate(40) }}{% if a.price %} · {{ a.price | money }}{% endif %}</span>
+          {% if a.differs %}<span class="an-diff">{{ a.differs[:2] | join("; ") | truncate(140) }}</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+</div>

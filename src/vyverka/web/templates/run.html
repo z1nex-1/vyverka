@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}{{ run.spec.title }} — Выверка{% endblock %}
+{% block body_class %}runpage{% endblock %}
+{% block main %}
+{% set ok_items = run.results | selectattr("calc.status", "equalto", "ok") | list %}
+<header class="bar run-bar sheet-head" data-run="{{ run.id }}" data-status="{{ run.status }}">
+  <div class="rb-title">
+    <p class="crumb"><a href="/runs">Расчёты</a> / {{ run.spec.source_name }} · {{ run.created_at.strftime("%d.%m.%Y %H:%M") }}
+      · {{ "любые источники, доверие от %d %%" | format(trust_min) if open_mode else "утверждённый список" }}{% if run.settings.user %} · {{ run.settings.user }}{% endif %}{% if run.settings.ai %} · ИИ-чтение карточек: {{ run.settings.ai.model }}{% endif %}</p>
+    <h1>{{ run.spec.title }}</h1>
+  </div>
+  <div class="rb-total {{ 'is-run' if run.status == 'running' else ('is-ok' if run.total else 'is-part') }}">
+    {% if run.status == "running" %}
+      <span class="t-label">НМЦД</span><span class="t-num">считается…</span>
+    {% elif run.total %}
+      <span class="t-label">НМЦД · все {{ run.results | length }} поз. обоснованы</span><span class="t-num">{{ run.total | money }}</span>
+    {% else %}
+      <span class="t-label">НМЦД определена не полностью · обоснованы {{ ok_items | length }} из {{ run.results | length }}</span>
+      <span class="t-num">{% if ok_items %}{{ ok_items | sum(attribute="calc.total") | money }}{% else %}нужны КП{% endif %}</span>
+    {% endif %}
+  </div>
+  {% if run.status != "running" %}
+  <div class="rb-actions">
+    <details class="menu">
+      <summary class="btn"><svg class="ic"><use href="#i-down"/></svg>Скачать</summary>
+      <div class="menu-list">
+        <a href="/runs/{{ run.id }}/report.docx"><b>Обоснование НМЦД</b><i>DOCX, для подписи</i></a>
+        <a href="/runs/{{ run.id }}/report.xlsx"><b>Расчёт</b><i>XLSX с формулами</i></a>
+        <a href="/runs/{{ run.id }}/report.json"><b>Журнал</b><i>JSON, все решения и коды</i></a>
+        <a href="/api/v1/runs/{{ run.id }}/replay" target="_blank" rel="noopener"><b>Проверка воспроизводимости</b><i>пересчёт без сети, сверка снимков по SHA-256</i></a>
+        {% if not run.total %}<a href="/runs/{{ run.id }}/rfq.docx"><b>Запрос КП поставщикам</b><i>DOCX по необоснованным позициям</i></a>{% endif %}
+      </div>
+    </details>
+    <button class="btn ghost js-only" type="button" data-win="#log-src"><svg class="ic"><use href="#i-log"/></svg>Журнал</button>
+  </div>
+  {% endif %}
+</header>
+
+{% if run.status == "running" %}
+<section class="pane progress" aria-live="polite">
+  <img class="prog-art" src="/static/illo/search.webp" alt="" width="120" height="120">
+  <div>
+    <h2 class="pane-h">Идёт расчёт</h2>
+    <p class="sub">Разбор ТЗ → поиск контрактов ЕИС → каталоги, если контрактов мало → сверка характеристик → расчёт. Обычно 1–2 минуты; страницу можно закрыть, расчёт продолжится.</p>
+    <ol class="log" id="log">
+      {% for ev in run.trace %}<li><time>{{ ev.at.strftime("%H:%M:%S") }}</time> {{ ev.message }}</li>{% endfor %}
+    </ol>
+    <noscript><p>Обновите страницу через минуту — расчёт продолжается на сервере.</p></noscript>
+  </div>
+</section>
+{% else %}
+
+<div class="work">
+  <nav class="items" aria-label="Позиции расчёта">
+    <p class="items-h">Позиции <span>{{ ok_items | length }} из {{ run.results | length }} обоснованы</span></p>
+    <ol>
+    {% for r in run.results %}
+      <li><a href="#item-{{ r.item.pos }}" data-pos="{{ r.item.pos }}" class="it s-{{ r.calc.status }}">
+        <span class="it-pos">{{ r.item.pos }}</span>
+        <span class="it-name">{{ r.item.name }}<i>{{ r.item.qty | num(0) }} {{ r.item.unit }} · цен {{ r.calc.n }}{% if r.calc.cv is not none %} · V {{ r.calc.cv | num(1) }} %{% endif %}</i></span>
+        <span class="it-sum">{% if r.calc.status == "ok" %}{{ r.calc.total | money }}{% else %}<em>{{ status_text[r.calc.status] }}</em>{% endif %}</span>
+      </a></li>
+    {% endfor %}
+    </ol>
+  </nav>
+
+  <div class="item-stage">
+  {% for r in run.results %}
+  {% set dec = {} %}{% for d in r.decisions %}{% set _ = dec.update({d.offer_id: d}) %}{% endfor %}
+  {% set inc = r.offers | selectattr("id", "in", r.calc.offer_ids) | list %}
+  {% set rest = r.offers | rejectattr("id", "in", r.calc.offer_ids) | list %}
+  <section class="item s-{{ r.calc.status }}" id="item-{{ r.item.pos }}" data-pos="{{ r.item.pos }}" aria-labelledby="ih-{{ r.item.pos }}">
+    <header class="item-head">
+      <span class="pos">{{ r.item.pos }}</span>
+      <div class="ih-text">
+        <h2 id="ih-{{ r.item.pos }}">{{ r.item.name }}</h2>
+        <p class="verdict">
+          {% if r.calc.status == "ok" %}<span class="chip ok">обоснована</span> {{ r.calc.unit_price | money }} за {{ r.item.unit }} × {{ r.item.qty | num(0) }} = <b>{{ r.calc.total | money }}</b>
+          {% else %}<span class="chip bad">{{ status_text[r.calc.status] }}</span> {{ r.calc.message }}{% endif %}
+        </p>
+      </div>
+      {% if r.calc.status != "ok" or r.offers | selectattr("source", "equalto", "manual") | list %}
+      <button class="btn sm js-only" type="button" data-win="#kp-{{ r.item.pos }}"><svg class="ic"><use href="#i-add"/></svg>Добавить КП</button>
+      {% endif %}
+    </header>
+
+    {% set rl = ruler(r) %}
+    {% if rl %}
+    <figure class="item-ruler">
+      {{ rl | safe }}
+      <figcaption>
+        <ul class="legend">
+          <li><i class="lg lg-zone"></i>допуск V ≤ {{ (run.settings.get("method") or {}).get("cv_limit", 33) }} %</li>
+          <li><i class="lg lg-in"></i>в расчёте</li>
+          <li><i class="lg lg-out"></i>исключена как выброс</li>
+          <li><i class="lg lg-off"></i>другой товар</li>
+          <li><i class="lg lg-needle"></i>цена за единицу</li>
+        </ul>
+        <span class="hint">Точка открывает предложение</span>
+      </figcaption>
+    </figure>
+    {% endif %}
+    {% if r.calc.status == "ok" %}<p class="calc-msg">{{ r.calc.message }}</p>{% endif %}
+
+    <div class="tabs" role="tablist" aria-label="Разделы позиции {{ r.item.pos }}">
+      <button role="tab" type="button" data-tab="in" aria-selected="true">В расчёте <b>{{ inc | length }}</b></button>
+      <button role="tab" type="button" data-tab="out" aria-selected="false">Не вошли <b>{{ rest | length }}</b></button>
+      {% if r.analogs %}<button role="tab" type="button" data-tab="an" aria-selected="false">Похожие <b>{{ r.analogs | length }}</b></button>{% endif %}
+      <button role="tab" type="button" data-tab="calc" aria-selected="false">Как посчитано</button>
+      <button role="tab" type="button" data-tab="src" aria-selected="false">Источники <b>{{ r.sources | length }}</b></button>
+    </div>
+
+    {% set reqs = r.item.requirements | selectattr("essential") | list %}
+    <div class="tab-panel" data-panel="in" role="tabpanel">
+      <h3 class="tp-h">В расчёте: {{ inc | length }}</h3>
+      {% if inc %}{% set shown = inc %}{% include "_offers.html" %}
+      {% else %}<p class="empty">Ни одна цена не прошла сверку с ТЗ. Посмотрите «Не вошли» и «Похожие» или добавьте коммерческое предложение.</p>{% endif %}
+    </div>
+
+    <div class="tab-panel" data-panel="out" role="tabpanel">
+      <h3 class="tp-h">Не вошли в расчёт: {{ rest | length }} — с причинами</h3>
+      {% if rest %}{% set shown = rest %}{% include "_offers.html" %}{% else %}<p class="empty">Все найденные цены вошли в расчёт.</p>{% endif %}
+    </div>
+
+    {% if r.analogs %}
+    <div class="tab-panel" data-panel="an" role="tabpanel">
+      <h3 class="tp-h">Похожие товары</h3>
+      {% include "_analogs.html" %}
+    </div>
+    {% endif %}
+
+    <div class="tab-panel" data-panel="calc" role="tabpanel">
+      <h3 class="tp-h">Как посчитано</h3>
+      <ol class="formula">
+        {% for st in r.calc.steps %}<li><span>{{ st.title }}</span>{{ st.detail }}</li>{% endfor %}
+      </ol>
+    </div>
+
+    <div class="tab-panel" data-panel="src" role="tabpanel">
+      <h3 class="tp-h">Источники по позиции</h3>
+      <ul class="src-state">
+        {% for s in r.sources %}
+        <li class="ss-{{ s.status }}"><i class="st"></i><b>{{ s.title }}</b>
+          <span>{% if s.status in ("ok", "empty") %}найдено {{ s.found }}{% if s.status == "empty" and s.error %} · {{ s.error }}{% endif %}{% else %}{{ s.error or "недоступен" }}{% endif %}</span>
+          <span class="q">запросы: {{ s.queries | join("; ") }}</span></li>
+        {% endfor %}
+        {% if r.duplicates %}<li class="ss-dup"><i class="st"></i>Склеено дублей: {{ r.duplicates | length }} <span>контракт ЕИС и его копия в зеркале реестра</span></li>{% endif %}
+      </ul>
+    </div>
+
+    {% if r.calc.status != "ok" or r.offers | selectattr("source", "equalto", "manual") | list %}
+    <div class="win-src" id="kp-{{ r.item.pos }}" data-title="Коммерческое предложение · позиция {{ r.item.pos }}">
+      <form class="kp" action="/runs/{{ run.id }}/items/{{ r.item.pos }}/offers" method="post">
+        <p class="kp-hint">Ответ поставщика на запрос цены. Цена за единицу ТЗ ({{ r.item.unit }}{% if r.item.pack_amount %}, {{ r.item.pack_amount | num(0) }} {{ r.item.pack_unit or "" }}{% endif %}), с НДС. После добавления позиция пересчитается.</p>
+        <label>Поставщик <input name="supplier" required maxlength="120" placeholder="ООО «…», ИНН"></label>
+        <label>Цена за единицу, ₽ <input name="price" type="number" step="0.01" min="0.01" required></label>
+        <label>Номер и дата КП <input name="doc" maxlength="60" placeholder="№ 15 от 12.11.2026"></label>
+        <label class="wide">Примечание <input name="note" maxlength="500" placeholder="фасовка, срок поставки"></label>
+        <button class="btn" type="submit">Добавить и пересчитать</button>
+      </form>
+    </div>
+    {% endif %}
+  </section>
+  {% endfor %}
+  </div>
+</div>
+
+<div class="win-src" id="log-src" data-title="Журнал расчёта: {{ run.trace | length }} событий">
+  <ol class="log">{% for ev in run.trace %}<li><time>{{ ev.at.strftime("%H:%M:%S") }}</time> {{ ev.message }}</li>{% endfor %}</ol>
+</div>
+{% endif %}
+{% endblock %}

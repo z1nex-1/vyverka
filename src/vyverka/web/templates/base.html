@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block title %}Выверка — обоснование НМЦД{% endblock %}</title>
+<meta name="description" content="Обоснование начальной (максимальной) цены договора методом сопоставимых рыночных цен: контракты ЕИС, каталоги поставщиков, причины по каждой цене.">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<meta name="theme-color" content="#17191B">
+<meta property="og:title" content="Выверка — обоснование НМЦД">
+<meta property="og:image" content="/static/og.png">
+<meta property="og:description" content="Загрузите ТЗ — получите обоснование цены, где каждая цифра раскрывается до источника.">
+<link rel="preload" href="/static/fonts/Vyverka-Bold.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/style.css?v=7">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+{% include "_icons.html" %}
+<a class="skip" href="#main">К содержанию</a>
+<div class="shell">
+<aside class="rail" aria-label="Разделы">
+  <a class="brand" href="/" aria-label="Выверка — новый расчёт">
+    <img src="/static/mark.svg" alt="" width="28" height="28"><span>Выверка</span>{% if ai_on %}<em class="ai-ed" title="Языковая модель дочитывает карточки; значение принимается только с цитатой из источника">ИИ</em>{% endif %}
+  </a>
+  <nav class="rail-nav">
+    <a href="/" {{ 'aria-current=page' if nav == 'new' }}><svg><use href="#i-new"/></svg><span>Новый расчёт</span><kbd>N</kbd></a>
+    <a href="/runs" {{ 'aria-current=page' if nav == 'runs' }}><svg><use href="#i-runs"/></svg><span>Расчёты</span><kbd>R</kbd></a>
+    <a href="/settings" {{ 'aria-current=page' if nav == 'settings' }}><svg><use href="#i-settings"/></svg><span>Настройки</span><kbd>S</kbd></a>
+    <a href="/guide" {{ 'aria-current=page' if nav == 'guide' }}><svg><use href="#i-guide"/></svg><span>Как работать</span><kbd>?</kbd></a>
+    <a href="/integration" {{ 'aria-current=page' if nav == 'integration' }}><svg><use href="#i-plug"/></svg><span>Внедрение</span></a>
+  </nav>
+  <div class="rail-foot">
+    {% set _o = org() %}
+    <p class="rail-org">{{ _o.name or "Организация" }}</p>
+    <a class="rail-pol" href="/settings#policy" title="Режим источников для новых расчётов"><i class="dot {{ 'd-open' if cur_policy() == 'open' else 'd-strict' }}"></i>{{ "Любые источники, доверие от %d %%" | format(cur_trust_min()) if cur_policy() == "open" else "Только утверждённый список" }}</a>
+    <p class="rail-law">{{ legal_basis(short=True) }}</p>
+    <p class="rail-links"><a href="/api/docs">API</a> · <a href="/healthz">состояние</a></p>
+  </div>
+</aside>
+<main id="main" class="stage">
+{% block main %}{% endblock %}
+</main>
+</div>
+<dialog class="win" id="win" aria-labelledby="win-title">
+  <header class="win-head"><h2 id="win-title"></h2><button class="icon-btn" type="button" data-close aria-label="Закрыть окно"><svg><use href="#i-close"/></svg></button></header>
+  <div class="win-body"></div>
+</dialog>
+<dialog class="win keys" id="keys" aria-labelledby="keys-title">
+  <header class="win-head"><h2 id="keys-title">Горячие клавиши</h2><button class="icon-btn" type="button" data-close aria-label="Закрыть"><svg><use href="#i-close"/></svg></button></header>
+  <div class="win-body">
+    <table class="plain keys-t">
+      <tr><td><kbd>N</kbd></td><td>новый расчёт</td></tr>
+      <tr><td><kbd>R</kbd></td><td>все расчёты</td></tr>
+      <tr><td><kbd>S</kbd></td><td>настройки</td></tr>
+      <tr><td><kbd>?</kbd></td><td>как работать; в расчёте — эта подсказка</td></tr>
+      <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>предыдущая и следующая позиция расчёта</td></tr>
+      <tr><td><kbd>1</kbd>…<kbd>5</kbd></td><td>вкладки позиции: в расчёте, не вошли, похожие, как посчитано, источники</td></tr>
+      <tr><td><kbd>J</kbd></td><td>журнал расчёта</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>закрыть окно</td></tr>
+    </table>
+  </div>
+</dialog>
+<script src="/static/app.js?v=5" defer></script>
+</body>
+</html>

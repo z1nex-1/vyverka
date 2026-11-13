@@ -1,0 +1,61 @@
+<ul class="offers">
+{% for o in shown %}
+{% set d = dec[o.id] %}
+{% set okn = d.checks | selectattr("status", "equalto", "ok") | list | length %}
+{% set bad = d.checks | selectattr("status", "equalto", "mismatch") | list | length %}
+<li class="offer {{ 'is-in' if d.included else 'is-out' }}" id="o-{{ anchor(o.id) }}">
+  <details>
+    <summary>
+      <span class="o-kind k-{{ o.kind }}">{{ kind_text.get(o.kind, o.kind) }}</span>
+      <span class="o-title">{{ o.title }}<span class="o-src">{{ o.source_title }}{% if o.doc_date %} · {{ o.doc_date.strftime("%d.%m.%Y") }}{% endif %}{% if o.supplier and o.kind == "contract" %} · {{ o.supplier }}{% endif %}</span></span>
+      <span class="o-price">{{ o.price | money }}{% if d.unit_price and (d.unit_price - o.price) | abs > 0.01 %}<span class="o-unit">→ {{ d.unit_price | money }}</span>{% endif %}</span>
+      {% if open_mode and d.trust is not none %}<span class="o-trust {{ 't-hi' if d.trust >= 80 else ('t-mid' if d.trust >= trust_min else 't-lo') }}" title="Доверие к цене: {% for f, v in d.trust_factors %}{{ f }} {{ ('%+d' | format(v)) if not loop.first else v }}{% if not loop.last %}; {% endif %}{% endfor %}">{{ d.trust }} %</span>{% endif %}
+      <span class="o-checks" title="Подтверждено характеристик ТЗ">{% if d.checks %}<b>{{ okn }}</b>/{{ d.checks | length }}{% if bad %} <i>✕{{ bad }}</i>{% endif %}{% endif %}</span>
+      <span class="o-why">{% if d.included %}{{ d.reasons[0][1] if d.reasons else "" }}{% else %}{{ (d.reasons | rejectattr(0, "equalto", "comparable") | list | first | default(["", ""]))[1] }}{% endif %}</span>
+    </summary>
+    <div class="o-body">
+      {% if d.checks %}
+      <table class="matrix">
+        <thead><tr><th>Требование ТЗ</th><th>Нужно</th><th>У предложения</th><th>Итог</th></tr></thead>
+        <tbody>
+        {% for c in d.checks %}
+          <tr class="c-{{ c.status }}"><td>{{ c.name }}</td><td>{{ c.required }}</td><td>{{ c.found or "—" }}{% if c.via == "ai" %} <span class="ai-tag" title="Нашла языковая модель, цитата сверена с текстом источника">ИИ</span><q class="ai-q">{{ c.quote }}</q>{% elif c.via == "ai_conflict" %} <span class="ai-tag ai-odd" title="Модель нашла значение, которое не сходится с ТЗ. Цена не исключена: проверьте карточку">ИИ?</span><q class="ai-q">{{ c.quote }}</q>{% endif %}</td><td>{{ check_text[c.status] }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      {% if d.reasons | length > 1 or not d.included %}
+      <ul class="reasons">{% for code, text in d.reasons %}<li><code>{{ code }}</code> {{ text }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if d.override %}<p class="ovr">Решение пользователя{% if d.override.by %} ({{ d.override.by }}){% endif %}, {{ d.override.at[:16] | replace("T", " ") }}: {{ "включено в расчёт" if d.override.action == "include" else "исключено из расчёта" }}{% if d.override.comment %} — «{{ d.override.comment }}»{% endif %}</p>{% endif %}
+      {% if open_mode and d.trust_factors %}
+      <p class="trust-why">Доверие {{ d.trust }} %: {% for f, v in d.trust_factors %}{{ f }} <b>{{ ('%+d' | format(v)) if not loop.first else v }}</b>{% if not loop.last %}; {% endif %}{% endfor %}</p>
+      {% endif %}
+      {% if d.normalized_note %}<p class="norm">Приведение к единице ТЗ: {{ d.normalized_note }}</p>{% endif %}
+      <dl class="evidence">
+        <dt>Источник</dt><dd><a href="{{ o.url }}" target="_blank" rel="noopener">{{ o.url | truncate(90, true) }}</a></dd>
+        {% if o.evidence.snapshot %}{% set hl = [] %}{% for c in d.checks if c.found and c.status in ("ok", "partial") %}{% if hl.append(c.quote or c.found) %}{% endif %}{% endfor %}
+        <dt>Копия страницы</dt><dd><a href="/snapshot/{{ o.evidence.snapshot }}?{{ {"sha": o.evidence.sha256 or "", "price": o.price, "hl": hl | join("|")} | urlencode }}" target="_blank" rel="noopener">сохранена {{ o.evidence.fetched_at.strftime("%d.%m.%Y %H:%M") }}, {{ "цена и характеристики подсвечены" if hl else "цена подсвечена" }}</a>, SHA-256 <code>{{ (o.evidence.sha256 or "")[:16] }}</code> · <a href="/snapshot/{{ o.evidence.snapshot }}?sha={{ o.evidence.sha256 or '' }}" target="_blank" rel="noopener">без отметок</a></dd>{% endif %}
+        {% if o.evidence.excerpt %}<dt>Фрагмент</dt><dd class="excerpt">{{ o.evidence.excerpt | truncate(420) }}</dd>{% endif %}
+        {% if o.doc_number %}<dt>Документ</dt><dd>{{ o.doc_number }}{% if o.stage %}, {{ o.stage | lower }}{% endif %}{% if o.penalties is not none %}, неустойки: {{ "были" if o.penalties else "нет" }}{% endif %}</dd>{% endif %}
+        {% if o.okpd2 or o.ktru %}<dt>Классификаторы</dt><dd>{{ o.okpd2 or "" }} {{ o.ktru or "" }}</dd>{% endif %}
+        {% if o.query %}<dt>Найдено по запросу</dt><dd>«{{ o.query }}»</dd>{% endif %}
+      </dl>
+      {% if run.status != "running" and o.source != "manual" %}
+      <form class="ovr-form" action="/runs/{{ run.id }}/offers/{{ o.id | urlencode }}/decision" method="post">
+        <input type="hidden" name="action" value="{{ 'exclude' if d.included else 'include' }}">
+        <input name="comment" maxlength="300" required placeholder="{{ 'Почему исключить: например, нет сертификата' if d.included else 'Почему это однородный товар: например, отличие не влияет на назначение' }}">
+        <button class="btn ghost" type="submit">{{ 'Исключить из расчёта' if d.included else 'Принять в расчёт' }}</button>
+      </form>
+      {% if d.override %}
+      <form class="ovr-form" action="/runs/{{ run.id }}/offers/{{ o.id | urlencode }}/decision" method="post">
+        <input type="hidden" name="action" value="reset">
+        <button class="btn ghost" type="submit">Вернуть автоматическое решение</button>
+      </form>
+      {% endif %}
+      {% endif %}
+    </div>
+  </details>
+</li>
+{% endfor %}
+</ul>

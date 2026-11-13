@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Внедрение — Выверка{% endblock %}
+{% block body_class %}admin{% endblock %}
+{% block main %}
+<header class="sheet-head adm-head">
+  <h1>Внедрение</h1>
+  <p class="sub">Выверка ставится в контур организации и работает без внешних облаков: наружу уходят только поисковые запросы с названием и характеристиками товара. Подключиться можно четырьмя способами — от кнопки в браузере до ночной выгрузки из ЭДО.</p>
+</header>
+
+<div class="int">
+<section class="adm-sec">
+  <h2>1. Веб-интерфейс</h2>
+  <p>Закупщик загружает ТЗ, видит каждую цену с причиной, принимает однородные товары с комментарием, скачивает обоснование DOCX, таблицу XLSX и запрос КП. Настройки источников — на <a href="/settings">отдельной странице</a>.</p>
+  <p>Вход — через единый вход организации: обратный прокси (Keycloak, ADFS, oauth2-proxy) передаёт логин в заголовке <code>X-Remote-User</code>, имя попадает в журнал решений и в отчёт.</p>
+  <p>Выверку можно установить как приложение прямо из браузера: своё окно и значок в панели задач, без адресной строки. Следующий шаг — настольная сборка под Windows, Astra Linux и РЕД ОС поверх того же сервера; сравнение вариантов — в <code>docs/app.md</code> и в <a href="/guide#app">справке</a>.</p>
+</section>
+
+<section class="adm-sec">
+  <h2>2. API для ЭДО, 1С и портала закупок</h2>
+  <p>Полное описание с примерами — <a href="/api/docs">{{ base }}/api/docs</a>. Ключи задаются переменной <code>VYVERKA_API_KEYS</code>.</p>
+<pre class="code"><code># запустить расчёт и дождаться результата
+curl -s -H "X-API-Key: $KEY" -F file=@tz.docx -F policy=strict -F wait_seconds=90 \
+     {{ base }}/api/v1/runs
+
+# или сразу вернуть id, а сводку прислать обратным вызовом
+curl -s -H "X-API-Key: $KEY" -F file=@tz.docx -F callback_url=https://edo.local/hooks/nmck \
+     {{ base }}/api/v1/runs
+
+# обоснование, таблица, запрос КП
+curl -s -H "X-API-Key: $KEY" -o nmck.docx {{ base }}/api/v1/runs/RUN_ID/report.docx
+curl -s -H "X-API-Key: $KEY" -o kp.docx   {{ base }}/api/v1/runs/RUN_ID/report.rfq.docx
+
+# пришло КП — добавить и пересчитать
+curl -s -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+     -d '{"supplier":"ООО Лабтех","price":18900,"doc":"КП № 41"}' \
+     {{ base }}/api/v1/runs/RUN_ID/items/1/offers
+
+# временно отключить источник
+curl -s -X PATCH -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+     -d '{"until":"2026-12-01"}' {{ base }}/api/v1/sources/ymarket</code></pre>
+  <p>Обратный вызов уходит только на хосты из <code>VYVERKA_WEBHOOK_HOSTS</code> — сервис нельзя заставить обращаться во внутреннюю сеть.</p>
+</section>
+
+<section class="adm-sec">
+  <h2>3. Консоль и пакетная обработка</h2>
+<pre class="code"><code>vyverka run tz.docx --policy open --out reports/
+vyverka batch /mnt/edo/incoming --out /mnt/edo/nmck     # все ТЗ из папки, по cron
+vyverka sources list
+vyverka sources off ymarket --until 2026-12-01
+vyverka sources add "ООО Лабтех" --url "https://labtech.ru/search?q={q}" --trust 85
+vyverka sources import "Перечень источников.docx"
+vyverka settings set policy=open
+vyverka settings set trust_min=70
+vyverka settings profiles</code></pre>
+  <p>Код возврата 0 — НМЦД обоснована полностью, 1 — не по всем позициям (рядом лежит запрос КП), 2 — ТЗ не прочитано.</p>
+</section>
+
+<section class="adm-sec">
+  <h2>4. Свой сервер</h2>
+<pre class="code"><code>docker compose up -d                 # порт 8000, данные в томе /data
+VYVERKA_PROFILE=vuz44                # профиль организации: mfti, vuz44, research
+VYVERKA_MODE=offline                 # закрытый контур: только сохранённые копии страниц
+VYVERKA_LOCK_SETTINGS=1              # настройки меняет только администратор
+VYVERKA_API_KEYS=ключ1,ключ2
+VYVERKA_WEBHOOK_HOSTS=edo.local</code></pre>
+  <p>Другой вуз подключается файлом <code>config/profiles/&lt;вуз&gt;.yaml</code>: реквизиты, закон, разрешённые сайты, пороги методики. Настройки переносятся между стендами файлом — кнопка «Скачать настройки».</p>
+</section>
+
+<section class="adm-sec">
+  <h2>Сейчас действует</h2>
+  <dl class="evidence">
+    <dt>Профиль</dt><dd>{{ s.profile }} — {{ s.org.name }}</dd>
+    <dt>Источники</dt><dd>{{ "только утверждённый список" if s.policy == "strict" else "любые открытые, порог доверия %d %%" | format(s.trust_min) }}</dd>
+    <dt>Разрешённых сайтов</dt><dd>{{ s.whitelist | length }}</dd>
+    <dt>Настройки</dt><dd>{{ "закрыты администратором" if s.locked else "можно менять в интерфейсе" }}</dd>
+  </dl>
+</section>
+</div>
+{% endblock %}

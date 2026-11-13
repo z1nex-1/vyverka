@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block body_class %}home{% endblock %}
+{% block main %}
+<header class="bar">
+  <div>
+    <p class="crumb">Новый расчёт</p>
+    <h1>Обоснование НМЦД из технического задания</h1>
+  </div>
+  <a class="btn ghost sm" href="/guide"><svg class="ic"><use href="#i-guide"/></svg>Как это работает</a>
+</header>
+
+<div class="home-grid">
+  <section class="pane start" id="start" aria-labelledby="start-h">
+    <h2 id="start-h" class="pane-h"><b>1</b> Загрузите ТЗ</h2>
+    <form class="upload" action="/runs" method="post" enctype="multipart/form-data" data-busy="Разбираю ТЗ…">
+      <label class="drop" for="tz">
+        <img class="drop-art" src="/static/illo/upload.webp" alt="" width="96" height="96">
+        <span class="drop-title">Перетащите файл сюда или выберите</span>
+        <span class="drop-hint">DOCX с таблицей позиций, как в закупках МФТИ, или TXT. До 10 МБ.</span>
+        <input id="tz" name="file" type="file" accept=".docx,.txt">
+        <span class="drop-file" aria-live="polite"></span>
+      </label>
+      <label class="free" for="tz-text"><span>или опишите закупку словами</span>
+        <textarea id="tz-text" name="text" rows="3" maxlength="20000"
+          placeholder="Монитор 24 дюйма, 1920x1200, IPS, 10 шт&#10;Яркость: не менее 250 кд/м²"></textarea></label>
+      <details class="req"><summary>Реквизиты закупки для отчёта</summary>
+        <label><span>Номер закупки</span><input name="notice" maxlength="60" inputmode="numeric" placeholder="32514000001"></label>
+        <label><span>Способ закупки</span><input name="method" maxlength="120" list="methods" placeholder="запрос котировок в электронной форме">
+          <datalist id="methods"><option value="запрос котировок в электронной форме"><option value="аукцион в электронной форме"><option value="конкурс в электронной форме"><option value="запрос предложений в электронной форме"><option value="закупка у единственного поставщика"></datalist></label>
+      </details>
+      <button type="submit" class="btn">Рассчитать НМЦД</button>
+    </form>
+
+    <h2 class="pane-h"><b>2</b> Откуда брать цены</h2>
+    <fieldset class="pol">
+      <legend class="sr">Режим источников</legend>
+      <label class="pol-opt"><input type="radio" name="policy-pick" value="strict" {{ "checked" if policy == "strict" }}>
+        <span><b>Только утверждённый список</b><i>ЕИС, зеркало реестра и каталоги из перечня организации. Доверие к каждой цене 100 %.</i></span></label>
+      <label class="pol-opt"><input type="radio" name="policy-pick" value="open" {{ "checked" if policy == "open" }}>
+        <span><b>Любые открытые источники</b><i>Плюс поиск по интернету. У цены — процент доверия, ниже {{ trust_min }} % в расчёт не идёт.</i></span></label>
+    </fieldset>
+
+    <h2 class="pane-h"><b>или</b> Откройте пример: ТЗ МФТИ из кейса или новая категория</h2>
+    <ul class="examples">
+      {% for key, ex in examples.items() %}
+      <li>
+        <form action="/runs" method="post" data-busy="Считаю…">
+          <input type="hidden" name="example" value="{{ key }}">
+          <button type="submit" class="ex"><img src="/static/illo/{{ key }}.webp" alt="" width="64" height="64"><span><b>{{ ex[0] }}</b><i>{{ ex[1] }}</i></span></button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <div class="side">
+    <section class="pane" aria-labelledby="recent-h">
+      <header class="pane-top"><h2 id="recent-h" class="pane-h">Последние расчёты</h2><a href="/runs" class="more">все</a></header>
+      {% if recent %}
+      <ul class="runs">
+        {% for r in recent[:6] %}
+        <li><a href="/runs/{{ r.id }}">
+          <i class="st {{ 'st-ok' if r.total else ('st-run' if r.status == 'running' else 'st-part') }}" aria-hidden="true"></i>
+          <span class="r-title">{{ r.title }}<span class="r-meta">{{ r.at }} · {{ r["items"] }} поз.</span></span>
+          <span class="r-sum">{% if r.total %}{{ r.total | money }}{% elif r.status == "running" %}считается{% else %}обоснованы {{ r.ok }} из {{ r["items"] }}{% endif %}</span></a></li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="empty">Здесь появятся ваши расчёты. Начните с примера слева — расчёт займёт около минуты.</p>
+      {% endif %}
+    </section>
+
+    {% if demo %}
+    <section class="pane sample" aria-labelledby="sample-h">
+      <header class="pane-top"><h2 id="sample-h" class="pane-h">Как выглядит результат</h2><a class="more" href="/runs/{{ demo.id }}">открыть</a></header>
+      <p class="sample-what">3D-принтер CreatBot D600 Pro · <b>{{ demo.total | money }}</b></p>
+      {{ demo.ruler | safe }}
+      <ul class="legend">
+        <li><i class="lg lg-zone"></i>зона допуска V ≤ 33 %</li>
+        <li><i class="lg lg-in"></i>цена в расчёте</li>
+        <li><i class="lg lg-off"></i>найдена, но не тот товар</li>
+        <li><i class="lg lg-needle"></i>итог за единицу</li>
+      </ul>
+      <p class="sample-note">Найдено {{ demo.found }}, в расчёт вошли {{ demo.n }}, разброс V = {{ demo.cv | num(1) }} %. У каждой из {{ demo.rejected }} отклонённых записана причина.</p>
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Расчёты — Выверка{% endblock %}
+{% block main %}
+<header class="sheet-head"><h1>Расчёты</h1><p class="sub">Все прогоны: откройте строку, чтобы перейти к позициям и ценам.</p></header>
+{% if runs %}
+<table class="plain">
+  <thead><tr><th>ТЗ</th><th>Дата</th><th class="n">Позиций</th><th class="n">Обосновано</th><th class="n">НМЦД</th></tr></thead>
+  <tbody>
+  {% for r in runs %}
+  <tr><td><a href="/runs/{{ r.id }}">{{ r.title }}</a>{% if r.file %}<span class="adm-basis">{{ r.file }}{% if r.policy == "open" %} · открытые источники{% endif %}</span>{% endif %}</td>
+    <td>{{ r.at }}</td><td class="n">{{ r["items"] }}</td>
+    <td class="n">{% if r.status == "running" %}считается{% else %}{{ r.ok }} из {{ r["items"] }}{% endif %}</td>
+    <td class="n">{% if r.total %}{{ r.total | money }}{% elif r.status == "running" %}—{% else %}не все позиции{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<p>Расчётов пока нет. <a href="/">Начните новый</a> — загрузите ТЗ или откройте пример.</p>{% endif %}
+{% endblock %}

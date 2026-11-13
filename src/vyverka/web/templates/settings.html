@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}Настройки — Выверка{% endblock %}
+{% block body_class %}admin{% endblock %}
+{% block main %}
+<header class="bar">
+  <div>
+    <p class="crumb">Настройки · {{ s.org.name or "Организация" }} · профиль «{{ (profiles | selectattr("id", "equalto", s.profile) | map(attribute="title") | first) or s.profile }}»</p>
+    <h1>Настройки</h1>
+  </div>
+  <p class="bar-note">Действуют для новых расчётов. Прошлые расчёты хранят настройки, с которыми считались.</p>
+</header>
+{% if note %}<p class="toast" role="status">{{ note }}</p>{% endif %}
+{% if s.locked %}<p class="toast warn">Настройки закрыты администратором: только просмотр.</p>{% endif %}
+
+<div class="set">
+<nav class="set-nav" aria-label="Разделы настроек">
+  <p class="set-group">Цены и источники</p>
+  <a href="#policy">Режим источников</a>
+  <a href="#sources">Источники <span>{{ sources | length }}</span></a>
+  <a href="#add">Добавить источник</a>
+  <a href="#import">Утверждённый список</a>
+  <a href="#domains">Сайты</a>
+  <p class="set-group">Расчёт</p>
+  {% for g in groups %}<a href="#r-{{ g.part }}">{{ g.title }}{% if g.fields | selectattr("changed") | list %} <span class="chg" title="есть изменения">изменено</span>{% endif %}</a>{% endfor %}
+  <p class="set-group">Организация</p>
+  <a href="#org">Профиль и реквизиты</a>
+  <a href="#files">Перенос и сброс</a>
+</nav>
+
+<div class="set-body">
+<fieldset class="adm" {% if s.locked %}disabled{% endif %}>
+
+<section class="set-sec" id="policy">
+  <h2>Режим источников</h2>
+  <p class="sub">Главная настройка: откуда Выверка берёт цены.</p>
+  <form action="/settings/policy" method="post" class="adm-form">
+    <div class="pol">
+      <label class="pol-opt"><input type="radio" name="policy" value="strict" {{ "checked" if s.policy == "strict" }}>
+        <span><b>Только утверждённый список</b><i>Цены берутся только из источников перечня организации. Доверие к каждой — 100 %. Поиск ходит только на сайты из списка.</i></span></label>
+      <label class="pol-opt"><input type="radio" name="policy" value="open" {{ "checked" if s.policy == "open" }}>
+        <span><b>Любые открытые источники с оценкой доверия</b><i>Все источники и поиск по интернету. У каждой цены — процент доверия: вид источника, разметка цены, ИНН продавца, наличие, совпадение характеристик.</i></span></label>
+    </div>
+    <div class="field">
+      <label for="trust_min">Порог доверия, %</label>
+      <input id="trust_min" type="number" name="trust_min" min="0" max="100" value="{{ s.trust_min }}">
+      <p class="hint">Только для открытого режима: цена с доверием ниже порога видна, но в расчёт не идёт.</p>
+    </div>
+    <button class="btn" type="submit">Сохранить</button>
+  </form>
+</section>
+
+<section class="set-sec" id="sources">
+  <h2>Источники</h2>
+  <p class="sub">Нажмите на источник, чтобы изменить доверие, очерёдность, лимит или выключить его — совсем или до даты.</p>
+  <ul class="src-list">
+  {% for c in sources %}
+    <li id="src-{{ c.id }}" class="st-{{ c.state }}">
+      <button type="button" class="src-row" data-win="#srcw-{{ c.id }}">
+        <i class="st" aria-hidden="true"></i>
+        <span class="src-t"><b>{{ c.title }}</b>{% if c.custom %} <em class="tag">свой</em>{% endif %}<i>{{ kind_text.get(c.kind, c.kind) }} · {{ c.basis | truncate(80) }}</i></span>
+        <span class="src-m">доверие <b>{{ c.trust }} %</b></span>
+        <span class="src-m">{% if c.tier %}уровень <b>{{ c.tier }}</b>{% endif %}</span>
+        <span class="src-s">{% if c.state == "on" %}подключён{% elif c.state == "manual" %}вручную{% elif c.state == "paused" %}до {{ c.until }}{% else %}выключен{% endif %}{% if c.listed %} · в списке{% endif %}</span>
+      </button>
+      <div class="win-src" id="srcw-{{ c.id }}" data-title="{{ c.title }}">
+        <p class="sub">{{ c.basis }}{% if c.url %}<br><code>{{ c.url | truncate(80) }}</code>{% endif %}</p>
+        <form action="/settings/sources/{{ c.id }}" method="post" class="adm-form grid">
+          <input type="hidden" name="action" value="params">
+          <div class="field"><label>Доверие, %</label><input type="number" name="trust" min="0" max="100" value="{{ c.trust }}">
+            <p class="hint">Вес цены в открытом режиме и в оценке по аналогам.</p></div>
+          <div class="field"><label>Уровень</label><input type="number" name="tier" min="1" max="9" value="{{ c.tier or '' }}">
+            <p class="hint">1 — опрашивается первым. Следующий уровень — только если цен мало.</p></div>
+          <div class="field"><label>Карточек с запроса</label><input type="number" name="limit" min="1" max="50" value="{{ c.limit or '' }}">
+            <p class="hint">Сколько результатов брать по одному поисковому запросу.</p></div>
+          {% if c.type in ("eis", "clearspending") %}
+          <div class="field"><label>Давность, лет</label><input type="number" name="years" min="1" max="10" value="{{ c.years or 3 }}">
+            <p class="hint">За какой срок искать исполненные контракты.</p></div>
+          {% endif %}
+          <button class="btn" type="submit">Сохранить параметры</button>
+        </form>
+        <div class="src-acts">
+          <form action="/settings/sources/{{ c.id }}" method="post"><input type="hidden" name="action" value="{{ 'unlist' if c.listed else 'list' }}">
+            <button class="btn ghost sm" type="submit">{{ "Убрать из утверждённого списка" if c.listed else "Внести в утверждённый список" }}</button></form>
+          {% if c.state == "on" %}
+          <form action="/settings/sources/{{ c.id }}" method="post"><input type="hidden" name="action" value="off"><button class="btn ghost sm" type="submit">Выключить</button></form>
+          <form action="/settings/sources/{{ c.id }}" method="post" class="adm-pause"><input type="hidden" name="action" value="pause">
+            <input type="date" name="until" min="{{ today }}" required aria-label="Отключить до"><button class="btn ghost sm" type="submit">Отключить до даты</button></form>
+          {% elif c.state != "manual" %}
+          <form action="/settings/sources/{{ c.id }}" method="post"><input type="hidden" name="action" value="on"><button class="btn sm" type="submit">Включить</button></form>
+          {% endif %}
+          {% if c.custom %}
+          <form action="/settings/sources/{{ c.id }}" method="post"><input type="hidden" name="action" value="delete"><button class="btn ghost sm del" type="submit">Удалить источник</button></form>
+          {% endif %}
+        </div>
+      </div>
+    </li>
+  {% endfor %}
+  </ul>
+</section>
+
+<section class="set-sec" id="add">
+  <h2>Добавить источник</h2>
+  <p class="sub">Достаточно адреса сайта поставщика — он станет разрешённым для поиска. Если у каталога есть поиск, вставьте адрес результатов с <code>{q}</code> на месте запроса: <code>https://shop.ru/search?text={q}</code>.</p>
+  <form action="/settings/sources" method="post" class="adm-form grid">
+    <div class="field"><label>Название</label><input name="title" required maxlength="120" placeholder="ООО «Лабтех», каталог реактивов"></div>
+    <div class="field"><label>Сайт или шаблон поиска</label><input name="url" maxlength="300" placeholder="labtech.ru или https://labtech.ru/search?q={q}"></div>
+    <div class="field"><label>Вид</label>
+      <select name="kind">{% for k, t in kinds.items() %}<option value="{{ k }}" {{ "selected" if k == "catalog" }}>{{ kind_text.get(k, k) }} — по умолчанию {{ t }} %</option>{% endfor %}</select></div>
+    <div class="field"><label>Доверие, %</label><input type="number" name="trust" min="0" max="100" placeholder="по виду"></div>
+    <div class="field wide"><label>Основание</label><input name="basis" maxlength="300" placeholder="Прайс-лист поставщика по договору № 12/26"></div>
+    <label class="check"><input type="checkbox" name="listed" value="1" checked> входит в утверждённый список</label>
+    <button class="btn" type="submit">Добавить</button>
+  </form>
+</section>
+
+<section class="set-sec" id="import">
+  <h2>Утверждённый список источников</h2>
+  <p class="sub">Загрузите список, по которому работает отдел закупок, — DOCX, XLSX или текст. Выверка найдёт в нём сайты и виды источников, отметит подключённые и откроет поиск по сайтам из него.</p>
+  <form action="/settings/import" method="post" enctype="multipart/form-data" class="adm-form grid">
+    <div class="field"><label>Файл списка</label><input type="file" name="file" accept=".docx,.xlsx,.txt,.md"></div>
+    <div class="field wide"><label>или текстом</label><textarea name="text" rows="4" placeholder="Единая информационная система (zakupki.gov.ru)&#10;Каталог «Комус» komus.ru&#10;Яндекс Маркет"></textarea></div>
+    <label class="check"><input type="radio" name="mode" value="merge" checked> дополнить текущие сайты</label>
+    <label class="check"><input type="radio" name="mode" value="replace"> заменить список сайтов</label>
+    <button class="btn" type="submit">Применить список</button>
+  </form>
+</section>
+
+<section class="set-sec" id="domains">
+  <h2>Сайты</h2>
+  <p class="sub">По одному адресу в строке. Поддомены входят: <code>komus.ru</code> разрешает и <code>www.komus.ru</code>.</p>
+  <form action="/settings/domains" method="post" class="adm-form two">
+    <div class="field"><label>Разрешённые</label><textarea name="whitelist" rows="12">{{ s.whitelist | join("\n") }}</textarea></div>
+    <div class="field"><label>Запрещённые: не брать цены никогда</label><textarea name="blacklist" rows="12" placeholder="aliexpress.ru">{{ s.blacklist | join("\n") }}</textarea></div>
+    <button class="btn" type="submit">Сохранить списки</button>
+  </form>
+</section>
+
+{% for g in groups %}
+<section class="set-sec" id="r-{{ g.part }}">
+  <h2>{{ g.title }}</h2>
+  <p class="sub">{{ g.about }}</p>
+  <form action="/settings/rules/{{ g.part }}" method="post" class="adm-form params">
+    {% for f in g.fields %}
+    <div class="param {{ 'is-changed' if f.changed }}">
+      {% if f.type == "bool" %}
+      <label class="check big"><input type="checkbox" name="{{ f.key }}" value="1" {{ "checked" if f.value }}> {{ f.label }}</label>
+      {% else %}
+      <label for="p-{{ g.part }}-{{ f.key }}">{{ f.label }}</label>
+      <input id="p-{{ g.part }}-{{ f.key }}" type="number" name="{{ f.key }}" value="{{ f.value }}" min="{{ f.min }}" max="{{ f.max }}" step="{{ f.step }}">
+      {% endif %}
+      <p class="hint">{{ f.hint }}</p>
+      <p class="def">{% if f.changed %}<b>изменено</b> · {% endif %}по умолчанию {{ ("да" if f.factory else "нет") if f.type == "bool" else (f.factory | string | replace(".", ",")) }}</p>
+    </div>
+    {% endfor %}
+    {% if g.cpi is defined %}
+    <div class="param wide">
+      <p class="lbl">Годовой ИПЦ для месяцев, которых ещё нет в ряду Росстата, % к предыдущему году</p>
+      <div class="cpi">
+        {% for y, v in g.cpi %}<label>{{ y }}<input type="number" name="cpi_{{ y }}" value="{{ v }}" step="0.01" min="-50" max="100"></label>{% endfor %}
+        <label>год<input type="number" name="cpi_new_year" min="2000" max="2099" placeholder="2027"></label>
+        <label>индекс<input type="number" name="cpi_new_value" step="0.01" placeholder="4,0"></label>
+      </div>
+      <p class="hint">Основной ряд — помесячный ИПЦ Росстата ({{ cpi_source }}), его хватает до последнего опубликованного месяца. Сюда можно внести официальный прогноз на месяцы после него; по умолчанию они не индексируются.</p>
+    </div>
+    {% endif %}
+    <div class="param-acts">
+      <button class="btn" type="submit">Сохранить «{{ g.title }}»</button>
+    </div>
+  </form>
+  <form action="/settings/rules/{{ g.part }}/reset" method="post" class="reset-form"><button class="btn ghost sm" type="submit">Вернуть значения по умолчанию</button></form>
+</section>
+{% endfor %}
+
+<section class="set-sec" id="org">
+  <h2>Профиль и реквизиты</h2>
+  <p class="sub">Профиль задаёт реквизиты в отчёте и запросе КП, закон (223-ФЗ или 44-ФЗ), список сайтов и пороги. Для другого вуза — свой файл в <code>config/profiles</code>.</p>
+  <form action="/settings/profile" method="post" class="adm-form grid">
+    <div class="field"><label>Профиль</label><select name="profile">{% for p in profiles %}<option value="{{ p.id }}" {{ "selected" if p.id == s.profile }}>{{ p.title }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Название в документах</label><input name="org_name" maxlength="120" value="{{ s.org.name or '' }}"></div>
+    <div class="field"><label>Ответственный за расчёт</label><input name="executor" maxlength="120" value="{{ s.org.executor or '' }}" placeholder="Фамилия И. О."></div>
+    <div class="field"><label>Должность</label><input name="position" maxlength="160" value="{{ s.org.position or '' }}" placeholder="Специалист отдела закупок"></div>
+    <div class="field wide"><label>Контакт для ответов на запрос КП</label><input name="contact" maxlength="200" value="{{ s.org.contact or '' }}" placeholder="Отдел закупок: почта и телефон"></div>
+    <button class="btn" type="submit">Сохранить</button>
+  </form>
+</section>
+
+</fieldset>
+
+<section class="set-sec" id="files">
+  <h2>Перенос и сброс</h2>
+  <p class="sub">Настройки одним файлом — перенести на другой стенд или в другой вуз. То же доступно через <a href="/integration">API и консоль</a>.</p>
+  <div class="src-acts">
+    <a class="btn ghost" href="/settings/export.json"><svg class="ic"><use href="#i-down"/></svg>Скачать настройки</a>
+    <form action="/settings/restore" method="post" enctype="multipart/form-data" class="adm-inline">
+      <input type="file" name="file" accept=".json" required aria-label="Файл настроек"><button class="btn ghost" type="submit" {% if s.locked %}disabled{% endif %}>Загрузить</button></form>
+    <form action="/settings/reset" method="post"><button class="btn ghost del" type="submit" {% if s.locked %}disabled{% endif %}>Сбросить всё к профилю</button></form>
+  </div>
+</section>
+</div>
+</div>
+{% endblock %}
