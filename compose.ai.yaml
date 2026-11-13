@@ -1,0 +1,17 @@
+# ИИ-версия: docker compose -f compose.yaml -f compose.ai.yaml up -d
+# Модель загружается один раз: docker compose exec ollama ollama pull hf.co/yandex/YandexGPT-5-Lite-8B-instruct-GGUF
+services:
+  vyverka:
+    environment:
+      VYVERKA_AI: "1"
+      VYVERKA_LLM_URL: http://ollama:11434
+      VYVERKA_LLM_MODEL: ${VYVERKA_LLM_MODEL:-hf.co/yandex/YandexGPT-5-Lite-8B-instruct-GGUF}
+    depends_on: [ollama]
+  ollama:
+    image: ollama/ollama:${OLLAMA_TAG:-0.34.2}
+    volumes:
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  ollama-models:
