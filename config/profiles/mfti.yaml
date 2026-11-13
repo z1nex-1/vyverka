@@ -1,0 +1,14 @@
+# Профиль организации: реквизиты для отчёта, порядок закупки и настройки по умолчанию.
+# Для другого вуза — скопировать файл, поправить org и правила положения о закупке.
+title: МФТИ — закупки по 223-ФЗ
+org:
+  name: МФТИ
+  full: федеральное государственное автономное образовательное учреждение высшего образования «Московский физико-технический институт (национальный исследовательский университет)»
+  law: "223"
+  regulation: Положение о закупке товаров, работ, услуг МФТИ
+  city: Долгопрудный
+policy: strict
+trust_min: 60
+whitelist: [zakupki.gov.ru, gisp.gov.ru, agregatoreat.ru, zakupki.mos.ru, market.yandex.ru, ozon.ru, vseinstrumenti.ru,
+            komus.ru, chipdip.ru, etm.ru, 3dvision.su, 3dtool.ru, 3dpt.ru, dia-m.ru, sberbank-ast.ru, rts-tender.ru, roseltorg.ru,
+            etpgpb.ru, zakazrf.ru, tektorg.ru, fabrikant.ru, lot-online.ru]

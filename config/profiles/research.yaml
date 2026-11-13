@@ -1,0 +1,14 @@
+title: НИИ или лаборатория — реактивы и уникальное оборудование
+org:
+  name: Научная организация
+  full: наименование заказчика
+  law: "223"
+  regulation: Положение о закупке
+  city: ""
+policy: open
+trust_min: 55
+method:
+  max_age_years: 3
+analogs:
+  k: 7
+whitelist: [zakupki.gov.ru, dia-m.ru, agregatoreat.ru]

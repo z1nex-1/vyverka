@@ -1,0 +1,12 @@
+title: Бюджетный вуз — закупки по 44-ФЗ
+org:
+  name: Вуз
+  full: наименование заказчика
+  law: "44"
+  regulation: Федеральный закон № 44-ФЗ, Приказ Минэкономразвития № 567
+  city: ""
+policy: strict
+trust_min: 70
+method:
+  max_age_years: 3
+whitelist: [zakupki.gov.ru, gisp.gov.ru, agregatoreat.ru, market.yandex.ru, ozon.ru, vseinstrumenti.ru, komus.ru]

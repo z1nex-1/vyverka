@@ -1,0 +1,129 @@
+# Источники ценовой информации. tier — старшинство: следующий уровень берётся в расчёт,
+# только если старшие дали меньше method.sample_target сопоставимых цен.
+# type — класс адаптера; новый каталог со schema.org JSON-LD или обычной HTML-выдачей
+# подключается здесь без изменения кода. enabled: false — источник выключен.
+sources:
+  - id: eis
+    type: eis
+    title: ЕИС — реестр контрактов
+    basis: "исполненные контракты без неустоек за 3 года (основной источник)"
+    tier: 1
+    years: 3
+    fz223: true
+    limit: 12
+
+  - id: clearspending
+    type: clearspending
+    title: Госзатраты — зеркало реестра контрактов
+    basis: "открытая копия реестра контрактов ЕИС, резерв при недоступности ЕИС"
+    tier: 2
+    years: 3
+    limit: 24
+
+  - id: ymarket
+    type: jsonld
+    kind: marketplace
+    title: Яндекс Маркет
+    basis: "маркетплейс, общедоступная оферта (если в ЕИС недостаточно данных)"
+    tier: 3
+    search_url: "https://market.yandex.ru/search?text={q}"
+    limit: 8
+    categories: [paper, generic, printer3d]
+
+  - id: 3dvision
+    type: html
+    kind: catalog
+    title: 3Dvision — дилер 3D-оборудования
+    basis: "каталог официального дистрибьютора, публичная цена"
+    tier: 3
+    search_url: "https://3dvision.su/search/?q={q}"
+    categories: [printer3d]
+    limit: 8
+    selectors:
+      card: ".productItem__card"
+      name: ".productItem__name"
+      price: ".productItem__price"
+      prop_name: ".productItem__propertyName"
+      prop_value: ".productItem__propertyValue"
+    detail:
+      limit: 4
+
+  - id: 3dtool
+    type: html
+    kind: catalog
+    title: 3Dtool — дилер 3D-оборудования
+    basis: "каталог дилера, публичная цена"
+    tier: 3
+    search_url: "https://3dtool.ru/search/?q={q}"
+    categories: [printer3d]
+    limit: 10
+    selectors:
+      card: ".b-product-block__content"
+      name: ".b-product-block__main-link"
+      title: ".b-product-block__name"
+      price: ".b-product-block__visible-price"
+    detail:
+      limit: 4
+      prop_name: ".paramsTable__name"
+      prop_value: ".paramsTable__value"
+
+  - id: 3dpt
+    type: html
+    kind: catalog
+    title: 3D Print Technologies — дилер 3D-оборудования
+    basis: "каталог дилера, публичная цена"
+    tier: 3
+    search_url: "https://www.3dpt.ru/search?q={q}"
+    categories: [printer3d]
+    limit: 10
+    selectors:
+      card: "form.prod_card"
+      name: ".title_name_prod_card"
+      price: ".price_prod_card"
+      link: "a.content_prod_card"
+    detail:
+      limit: 4
+
+  - id: diam
+    type: html
+    kind: catalog
+    title: Диаэм — поставщик реактивов
+    basis: "каталог дистрибьютора лабораторных реактивов, цена по фасовкам"
+    tier: 3
+    search_url: "https://dia-m.ru/search/?q={q}"
+    categories: [reagents]
+    limit: 24
+    selectors:
+      card: ".product-card"
+      name: "a.product-card__name"
+      maker: ".product-card__category"
+      variant: ".product-model"
+      variant_name: ".product-model__amount"
+      variant_price: ".product-model__price"
+    detail:
+      limit: 4
+      description: ".descr__content"
+
+  - id: web
+    type: web
+    kind: web
+    title: Открытый поиск
+    basis: "сайты магазинов и дилеров из поисковой выдачи; в строгом режиме — только сайты из списка разрешённых, в открытом — любые, с оценкой доверия"
+    tier: 4
+    search_url: "https://search.brave.com/search?q={q}&source=web"
+    result_selector: '[data-type="web"] a[href^="http"]'
+    query_suffix: "цена купить"
+    pages: 6
+    limit: 6
+
+  - id: berezka
+    type: jsonld
+    enabled: false
+    title: ЕАТ «Берёзка»
+    basis: "агрегатор торгов; выдача строится скриптом в браузере, без открытого API — подключается через выгрузку"
+    search_url: "https://agregatoreat.ru/catalog?search={q}"
+
+  - id: manual
+    type: manual
+    title: Коммерческие предложения
+    basis: "ответы поставщиков на запрос цен (загружает пользователь)"
