@@ -1,0 +1,14 @@
+services:
+  vyverka:
+    build: .
+    image: vyverka:latest
+    ports:
+      - "${VYVERKA_PORT:-8000}:8000"
+    environment:
+      VYVERKA_MODE: ${VYVERKA_MODE:-cache}
+    volumes:
+      - vyverka-data:/data
+    restart: unless-stopped
+
+volumes:
+  vyverka-data:
