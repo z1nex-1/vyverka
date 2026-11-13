@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Как работать — Выверка{% endblock %}
 {% block body_class %}admin{% endblock %}
-{% set cv = m.get("cv_limit", 33) %}{% set mo = m.get("min_offers", 3) %}{% set st = m.get("sample_target", 5) %}
+{% set cv = m.get("cv_limit", 33) %}{% set mo = m.get("min_offers", 3) %}{% set st = m.get("sample_target") or mo %}
 {% block main %}
 <header class="bar">
   <div>

@@ -149,7 +149,7 @@
       <input id="p-{{ g.part }}-{{ f.key }}" type="number" name="{{ f.key }}" value="{{ f.value }}" min="{{ f.min }}" max="{{ f.max }}" step="{{ f.step }}">
       {% endif %}
       <p class="hint">{{ f.hint }}</p>
-      <p class="def">{% if f.changed %}<b>изменено</b> · {% endif %}по умолчанию {{ ("да" if f.factory else "нет") if f.type == "bool" else (f.factory | string | replace(".", ",")) }}</p>
+      <p class="def">{% if f.changed %}<b>изменено</b> · {% endif %}по умолчанию {{ ("да" if f.factory else "нет") if f.type == "bool" else ("как «Минимум цен»" if f.factory is none else (f.factory | string | replace(".", ","))) }}</p>
     </div>
     {% endfor %}
     {% if g.cpi is defined %}
