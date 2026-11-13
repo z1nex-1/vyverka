@@ -141,7 +141,7 @@
       <ul class="src-state">
         {% for s in r.sources %}
         <li class="ss-{{ s.status }}"><i class="st"></i><b>{{ s.title }}</b>
-          <span>{% if s.status in ("ok", "empty") %}найдено {{ s.found }}{% if s.status == "empty" and s.error %} · {{ s.error }}{% endif %}{% else %}{{ s.error or "недоступен" }}{% endif %}</span>
+          <span>{% if s.status in ("ok", "empty") %}найдено {{ s.found }}{% if s.status == "empty" and s.error %} · {{ s.error }}{% endif %}{% elif s.found %}найдено {{ s.found }} · затем источник перестал отвечать, расчёт идёт по найденному{% else %}{{ s.error or "недоступен" }}{% endif %}</span>
           <span class="q">запросы: {{ s.queries | join("; ") }}</span></li>
         {% endfor %}
         {% if r.duplicates %}<li class="ss-dup"><i class="st"></i>Склеено дублей: {{ r.duplicates | length }} <span>контракт ЕИС и его копия в зеркале реестра</span></li>{% endif %}

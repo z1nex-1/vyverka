@@ -184,8 +184,11 @@ class Pipeline:
         st.elapsed_ms = int((time.monotonic() - t0) * 1000)
         if st.status == "ok" and not got:
             st.status = "empty"
+        found = plural(st.found, "предложение", "предложения", "предложений")
         await self.emit("source", f"Поз. {item.pos} · {src.title}: "
-                        + (plural(st.found, "предложение", "предложения", "предложений") if st.status in ("ok", "empty") else f"недоступен ({st.error})"),
+                        + (found if st.status in ("ok", "empty")
+                           else f"{found}, затем источник перестал отвечать" if st.found
+                           else f"недоступен ({st.error})"),
                         pos=item.pos, source=src.name, status=st.status, found=st.found)
         return list(got.values()), st
 
