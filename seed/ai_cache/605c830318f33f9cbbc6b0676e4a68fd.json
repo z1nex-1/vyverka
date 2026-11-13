@@ -1,0 +1,31 @@
+{
+ "model": "yandexgpt-lite:8b",
+ "reqs": [
+  "Цвет",
+  "Белизна CIE",
+  "Толщина",
+  "Соответствие стандарту"
+ ],
+ "found": [
+  {
+   "name": "Цвет",
+   "value": null,
+   "quote": null
+  },
+  {
+   "name": "Белизна CIE",
+   "value": null,
+   "quote": null
+  },
+  {
+   "name": "Толщина",
+   "value": null,
+   "quote": null
+  },
+  {
+   "name": "Соответствие стандарту",
+   "value": null,
+   "quote": null
+  }
+ ]
+}

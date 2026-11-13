@@ -1,0 +1,13 @@
+{
+ "model": "yandexgpt-lite:8b",
+ "reqs": [
+  "Цвет"
+ ],
+ "found": [
+  {
+   "name": "Цвет",
+   "value": null,
+   "quote": null
+  }
+ ]
+}

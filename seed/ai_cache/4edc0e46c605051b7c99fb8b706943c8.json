@@ -1,0 +1,31 @@
+{
+ "model": "yandexgpt-lite:8b",
+ "reqs": [
+  "Марка бумаги",
+  "Цвет",
+  "Белизна CIE",
+  "Соответствие стандарту"
+ ],
+ "found": [
+  {
+   "name": "Марка бумаги",
+   "value": "SvetoCopy",
+   "quote": "Бумага для копировально-множительной техники офисная SvetoCopy"
+  },
+  {
+   "name": "Цвет",
+   "value": null,
+   "quote": null
+  },
+  {
+   "name": "Белизна CIE",
+   "value": null,
+   "quote": null
+  },
+  {
+   "name": "Соответствие стандарту",
+   "value": null,
+   "quote": null
+  }
+ ]
+}
