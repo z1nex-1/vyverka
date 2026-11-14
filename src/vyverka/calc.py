@@ -76,6 +76,10 @@ def _hint_only(pool: dict[str, float], qty: float, need: int, limit: float, nd: 
     mean, std, cv = stats(list(pool.values()))
     steps.append(CalcStep(title="Однородность", detail=f"среднее {_fmt(mean)}, σ {_fmt(std)}, V = σ/среднее = {_pct(cv, 2)} %"))
     res = _finish(pool, qty, limit, nd, steps)
+    flags = anomalies(pool)
+    if flags:
+        res.steps.append(CalcStep(title="Проверка аномалий",
+                                  detail="; ".join(flags) + ". Цены не исключены: проверьте источник, решение за закупщиком"))
     if cv > limit:
         med = statistics.median(pool.values())
         i, v = max(pool.items(), key=lambda kv: abs(kv[1] - med))
@@ -90,6 +94,26 @@ def _hint_only(pool: dict[str, float], qty: float, need: int, limit: float, nd: 
         res.steps.append(CalcStep(title="Подсказка закупщику", detail=tip))
         res.message += " Подсказка: " + tip + "."
     return res
+
+
+def anomalies(pool: dict[str, float]) -> list[str]:
+    """Два независимых признака аномальной цены, только подсказка: модифицированный z-score по медиане и MAD
+    (Iglewicz–Hoaglin, |M| > 3,5) и отличие от медианы больше чем в два раза — его видно и на трёх ценах."""
+    m = rules().get("method", {})
+    z_lim, ratio, min_n = float(m.get("anomaly_z", 3.5)), float(m.get("anomaly_ratio", 2)), int(m.get("anomaly_z_min_n", 5))
+    vals = list(pool.values())
+    med = statistics.median(vals)
+    mad = statistics.median(abs(v - med) for v in vals)
+    out = []
+    for v in sorted(vals):
+        why = []
+        if mad > 0 and len(vals) >= min_n and abs(0.6745 * (v - med) / mad) > z_lim:
+            why.append(f"|M| = {_pct(abs(0.6745 * (v - med) / mad), 1)} > {_pct(z_lim, 1)}")
+        if med and (v / med >= ratio or med / v >= ratio):
+            why.append(f"в {_pct(max(v / med, med / v), 1)} раза от медианы {_fmt(med)}")
+        if why:
+            out.append(f"цена {_fmt(v)}: " + ", ".join(why))
+    return out
 
 
 def _finish(pool: dict[str, float], qty: float, limit: float, nd: int, steps: list[CalcStep]) -> Calculation:

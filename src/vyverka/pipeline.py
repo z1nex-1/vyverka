@@ -8,7 +8,7 @@ from collections.abc import Callable
 from datetime import datetime
 from urllib.parse import urlsplit
 
-from . import ai, analogs, trust
+from . import ai, analogs, rnp, trust
 from .calc import calculate
 from .config import rules, sources as sources_conf
 from .settings import org, policy as default_policy, public as settings_public, trust_min
@@ -53,7 +53,7 @@ class Pipeline:
                                  "org": org(), "user": self.user,
                                  **({"ai": ai.info()} if self.reader else {})})
         await self.emit("parse", f"ТЗ разобрано: {plural(len(spec.items), 'позиция', 'позиции', 'позиций')}", items=len(spec.items))
-        fetcher = Fetcher(mode=self.mode)
+        fetcher = self.fetcher = Fetcher(mode=self.mode)
         try:
             srcs = build(fetcher, self.only, self.policy)
             await self.emit("plan", ("Режим источников: только утверждённый список, доверие 100 %"
@@ -87,6 +87,10 @@ class Pipeline:
                 normalize(item, o, decisions[o.id])
         confs = {c["id"]: c for c in sources_conf().get("sources", [])}
         trust.apply(offers, decisions, confs, self.policy, trust_min())
+        counts = await rnp.check(self.fetcher, offers, decisions)
+        if any(counts.values()):
+            await self.emit("rnp", f"Поз. {item.pos}: поставщики по РНП ЕИС — нет в реестре {counts['clean']}, "
+                            f"в реестре {counts['listed']}, не удалось проверить {counts['unknown']}", pos=item.pos, **counts)
         _one_per_supplier(offers, decisions)
         _one_per_product(item, offers, decisions)
         _by_identity(offers, decisions)

@@ -88,6 +88,10 @@ def normalize(item: Item, offer: Offer, dec: Decision, today: date | None = None
         per = price / amt
         price = per * item.pack_amount
         notes.append(f"фасовка {amt:g} мкг → {rub(per)}/мкг × {item.pack_amount:g} мкг".replace(".", ","))
+        ratio = max(amt, item.pack_amount) / min(amt, item.pack_amount)
+        if ratio > float(rules().get("normalization", {}).get("pack_ratio_warn", 2)):
+            notes.append(f"фасовка отличается от ТЗ в {ratio:.0f} раз: у крупной фасовки цена за мкг обычно ниже, "
+                         "проверьте цену запросом КП".replace(".", ","))
     elif basis == "pack":
         sheets, packs = _sheets(text)
         want = item.pack_amount or 500

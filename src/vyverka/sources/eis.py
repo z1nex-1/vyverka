@@ -108,11 +108,12 @@ def parse_search(html: str) -> list[dict]:
             ".registry-entry__header-mid__title") else ""
         titles = [clean(x.text()) for x in b.css(".registry-entry__body-title")]
         values = [clean(x.text()) for x in b.css(".registry-entry__body-value, .registry-entry__body-href")]
-        customer = values[0] if values else None
+        at = titles.index("Заказчик") if "Заказчик" in titles else 0
+        customer = values[at] if len(values) > at else None
         dates = {clean(x.text()): clean(y.text()) for x, y in
                  zip(b.css(".data-block__title"), b.css(".data-block__value"))}
         out.append({"reg": reg, "stage": stage, "customer": customer, "titles": titles,
-                    "signed": ru_date(dates.get("Заключение контракта")),
+                    "signed": ru_date(dates.get("Заключение контракта") or dates.get("Заключение договора")),
                     "price": money(b.css_first(".price-block__value").text() if b.css_first(".price-block__value") else None)})
     return out
 

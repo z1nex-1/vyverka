@@ -14,6 +14,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from . import rnp
 from .models import ItemResult, Offer, Run
 from .settings import legal_basis, org
 from .words import plural
@@ -150,16 +151,16 @@ def xlsx(run: Run) -> bytes:
     ws.freeze_panes = "C5"
 
     src = wb.create_sheet("Источники цен")
-    _head(src, 1, ["Поз.", "Цена в расчёте", "Источник", "Документ / ссылка", "Снимок страницы (SHA-256)", "Приведение"])
+    _head(src, 1, ["Поз.", "Цена в расчёте", "Источник", "Документ / ссылка", "Снимок страницы (SHA-256)", "Приведение", "РНП ЕИС"])
     row = 2
     for r in run.results:
         for o in used(r):
             d = next(x for x in r.decisions if x.offer_id == o.id)
             _row(src, row, [r.item.pos, d.unit_price, source_line(o), o.url,
-                            (o.evidence.sha256 or "")[:16], d.normalized_note or "без пересчёта"])
+                            (o.evidence.sha256 or "")[:16], d.normalized_note or "без пересчёта", rnp.label(o)])
             src.cell(row=row, column=4).hyperlink = o.url
             row += 1
-    _widths(src, [6, 14, 60, 50, 20, 50])
+    _widths(src, [6, 14, 60, 50, 20, 50, 16])
 
     for r in run.results:
         sh = wb.create_sheet(f"Поз. {r.item.pos}")
@@ -334,6 +335,12 @@ def docx(run: Run) -> bytes:
                 line.add_run("Найдено моделью по цитате: " + "; ".join(f"{c.name} — «{c.quote}»" for c in by_ai) + ". ").italic = True
             if d.normalized_note:
                 line.add_run(f"Приведение: {d.normalized_note}. ").italic = True
+            rn = (o.meta or {}).get("rnp")
+            if rn and rn["status"] == "clean":
+                line.add_run(f"В реестре недобросовестных поставщиков ЕИС не значится (проверено "
+                             f"{rn['checked_at'][8:10]}.{rn['checked_at'][5:7]}.{rn['checked_at'][:4]}). ")
+            elif rn and rn["status"] == "unknown":
+                line.add_run("Проверить поставщика по РНП ЕИС не удалось, проверьте вручную. ")
             if pol == "open" and d.trust is not None:
                 line.add_run(f"Доверие {d.trust} %. ")
             if d.override:

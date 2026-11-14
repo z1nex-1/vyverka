@@ -160,7 +160,7 @@ def rules_overrides() -> dict:
 
 
 def _source_kind(c: dict) -> str:
-    if c.get("type") in ("eis",):
+    if c.get("type") in ("eis", "eis223"):
         return "contract"
     if c.get("type") == "clearspending":
         return "registry"

@@ -3,12 +3,14 @@ from ..net import Fetcher
 from .base import Source
 from .clearspending import ClearSpending
 from .eis import EisContracts
+from .eis223 import EisContracts223
 from .html import HtmlCatalog
 from .jsonld import JsonLdCatalog
 from .web import WebSearch
 
 REGISTRY: dict[str, type[Source]] = {
     "eis": EisContracts,
+    "eis223": EisContracts223,
     "clearspending": ClearSpending,
     "jsonld": JsonLdCatalog,
     "html": HtmlCatalog,
