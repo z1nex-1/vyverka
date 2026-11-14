@@ -9,6 +9,9 @@
 
 Стенд: https://vyverka.z1nex.ru — примеры из кейса открываются на главной, описание API — на `/api/docs`.
 
+Презентация: [Vyverka_prezentaciya.pdf](https://github.com/z1nex-1/vyverka/releases/download/v1.0/Vyverka_prezentaciya.pdf) (21 слайд).
+Видео с работой стенда: [Vyverka_video.mp4](https://github.com/z1nex-1/vyverka/releases/download/v1.0/Vyverka_video.mp4) (3 минуты).
+
 ![Расчёт по ТЗ на 3D-принтер](docs/img/run.jpg)
 
 ## Что получается на ТЗ кейса и на новой категории
