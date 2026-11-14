@@ -48,6 +48,15 @@ def test_printer_example_offline_end_to_end(client):
     assert "=COUNT(E5:G5)" in formulas and "=ROUND(AVERAGE(E5:G5),2)" in formulas
     rep = client.get(f"/api/v1/runs/{rid}/replay").json()
     assert rep["ok"] and rep["replayed_total"] == pytest.approx(1_183_333.33)
+    import docx as _docx
+    full = client.get(f"/runs/{rid}/report.docx").content
+    pub = client.get(f"/runs/{rid}/report.public.docx")
+    assert pub.status_code == 200 and "-public.docx" in pub.headers["content-disposition"]
+    text = lambda b: "\n".join(p.text for p in _docx.Document(io.BytesIO(b)).paragraphs)
+    t_full, t_pub = text(full), text(pub.content)
+    assert "3Dtool" in t_full and "http" in t_full
+    assert "3Dtool" not in t_pub and "http" not in t_pub and "дилер" not in t_pub
+    assert "наименования поставщиков" in t_pub and "1 183 333,33" in t_pub
 
 
 def test_commercial_offer_completes_position(client):

@@ -66,3 +66,18 @@ def test_heterogeneous_when_exclusion_budget_spent():
 def test_half_kopeck_rounds_up():
     calc, _ = calculate({"a": 100.005, "b": 100.005, "c": 100.005}, qty=1)
     assert calc.unit_price == pytest.approx(100.01)
+
+
+def test_min_price_rule_takes_lowest_of_homogeneous_sample(monkeypatch):
+    base = calc_mod.rules()
+    monkeypatch.setattr(calc_mod, "rules", lambda: {**base, "method": {**base["method"], "price": "min"}})
+    c, _ = calculate({"a": 100.0, "b": 110.0, "c": 120.0}, 3)
+    assert c.status == "ok" and c.unit_price == 100.0 and c.total == 300.0
+    assert "min(ц₁…ц₃)" in c.steps[-1].detail and "минимальная" in c.message
+
+
+def test_min_price_rule_still_requires_homogeneity(monkeypatch):
+    base = calc_mod.rules()
+    monkeypatch.setattr(calc_mod, "rules", lambda: {**base, "method": {**base["method"], "price": "min"}})
+    c, _ = calculate({"a": 100.0, "b": 300.0, "c": 900.0}, 1)
+    assert c.status == "heterogeneous" and c.unit_price is None

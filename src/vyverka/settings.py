@@ -21,7 +21,8 @@ from .config import config_dir, data_dir
 # Доверие по умолчанию: исполненный контракт — фактически уплаченная цена, сайт из поиска — заявленная.
 KIND_TRUST = {"contract": 100, "registry": 95, "offer": 90, "catalog": 85, "marketplace": 75, "web": 50}
 EDITABLE_METHOD = {"min_offers": int, "cv_limit": float, "max_age_years": int, "sample_target": int,
-                   "max_outlier_share": float, "one_offer_per_supplier": bool}
+                   "max_outlier_share": float, "one_offer_per_supplier": bool, "price": str}
+PRICE_RULES = [("mean", "средняя арифметическая"), ("min", "минимальная")]
 
 _cache: dict = {"mtime": None, "data": {}}
 
@@ -287,7 +288,10 @@ def set_method(values: dict) -> None:
     def fn(d):
         m = d.setdefault("method", {})
         for k, v in values.items():
-            if k in EDITABLE_METHOD and v not in (None, ""):
+            if k == "price":
+                if v in dict(PRICE_RULES):
+                    m[k] = v
+            elif k in EDITABLE_METHOD and v not in (None, ""):
                 m[k] = EDITABLE_METHOD[k](v) if EDITABLE_METHOD[k] is not bool else v in (True, "1", "on", "true")
     update(fn)
 
@@ -298,6 +302,7 @@ RULE_GROUPS = [
     {"part": "method", "title": "Методика расчёта",
      "about": "Приказ Минэкономразвития № 567. Положение о закупке организации может быть строже, мягче — нельзя.",
      "fields": [
+         ("price", str, PRICE_RULES, None, None, "Цена договора", "Средняя арифметическая однородной совокупности (Приказ № 567) или минимальная из цен, если её допускает положение о закупке (у МФТИ — п. 8.2)."),
          ("min_offers", int, 1, 20, 1, "Минимум цен", "Меньше — позиция получает «не обоснована» и форму запроса КП. Приказ № 567, п. 3.20.1: не менее трёх."),
          ("cv_limit", float, 5, 100, 0.5, "Предел разброса V, %", "Коэффициент вариации σ / среднее. Выше предела крайние цены исключаются по одной."),
          ("max_age_years", int, 1, 10, 1, "Давность контрактов, лет", "Исполненные контракты старше не берутся."),
@@ -357,6 +362,7 @@ def rule_groups(effective: dict, factory: dict) -> list[dict]:
             v, f = _dig(eff, key), _dig(fac, key)
             fields.append({"key": key, "type": typ.__name__, "min": lo, "max": hi, "step": step, "label": label,
                            "hint": hint, "value": v if v is not None else f, "factory": f,
+                           "factory_label": dict(lo).get(f, f) if typ is str else None,
                            "changed": _dig(over.get(part, {}), key) is not None and _dig(over.get(part, {}), key) != f})
         item = {**g, "fields": fields}
         if g.get("cpi"):
@@ -376,6 +382,10 @@ def set_rules(part: str, form: dict) -> None:
         raw_v = form.get(key)
         if typ is bool:
             v = raw_v in ("1", "on", "true", True)
+        elif typ is str:
+            if raw_v not in dict(lo):
+                continue
+            v = raw_v
         elif raw_v in (None, ""):
             continue
         else:

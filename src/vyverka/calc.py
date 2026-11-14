@@ -14,6 +14,16 @@ def _pct(x: float, nd: int) -> str:
     return f"{x:.{nd}f}".replace(".", ",")
 
 
+def price_rule() -> str:
+    """Какой ценой однородной совокупности определяется НМЦД: средней (Приказ № 567) или минимальной,
+    если положение о закупке заказчика это допускает."""
+    return "min" if rules().get("method", {}).get("price") == "min" else "mean"
+
+
+def _sub(n: int) -> str:
+    return str(n).translate(str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉"))
+
+
 def stats(prices: list[float]) -> tuple[float, float, float]:
     mean = sum(prices) / len(prices)
     std = statistics.stdev(prices) if len(prices) > 1 else 0.0
@@ -22,7 +32,7 @@ def stats(prices: list[float]) -> tuple[float, float, float]:
 
 
 def calculate(prices: dict[str, float], qty: float) -> tuple[Calculation, dict[str, str]]:
-    """Метод сопоставимых рыночных цен: средняя арифметическая однородной совокупности (CV ≤ предела).
+    """Метод сопоставимых рыночных цен: средняя (или минимальная) цена однородной совокупности (CV ≤ предела).
     Возвращает расчёт и словарь offer_id -> причина исключения на этапе расчёта."""
     m = rules().get("method", {})
     need, limit = int(m.get("min_offers", 3)), float(m.get("cv_limit", 33))
@@ -126,10 +136,13 @@ def _finish(pool: dict[str, float], qty: float, limit: float, nd: int, steps: li
         base.message = (f"Совокупность цен неоднородна: V = {_pct(cv, 2)} % > {limit:g} %. "
                         "По методике нужно провести дополнительные исследования — цена не обоснована.")
         return base
-    unit = math.floor(mean * 10**nd + 0.5) / 10**nd
+    by_min = price_rule() == "min"
+    unit = math.floor((min(vals) if by_min else mean) * 10**nd + 0.5) / 10**nd
     base.unit_price = unit
     base.total = round(unit * qty, nd)
+    formula = f"min(ц₁…ц{_sub(len(vals))})" if by_min else f"(1/{len(vals)})·Σцᵢ"
     base.steps.append(CalcStep(title="НМЦД",
-                          detail=f"цена за единицу = (1/{len(vals)})·Σцᵢ = {_fmt(unit)}; × {qty:g} = {_fmt(base.total)}"))
-    base.message = f"Обоснована по {plural(len(vals), 'цене', 'ценам', 'ценам')}, V = {_pct(cv, 2)} % ≤ {limit:g} %."
+                          detail=f"цена за единицу = {formula} = {_fmt(unit)}; × {qty:g} = {_fmt(base.total)}"))
+    base.message = (f"Обоснована по {plural(len(vals), 'цене', 'ценам', 'ценам')}, V = {_pct(cv, 2)} % ≤ {limit:g} %"
+                    + (", взята минимальная цена." if by_min else "."))
     return base

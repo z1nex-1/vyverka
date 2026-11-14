@@ -110,13 +110,13 @@ async def get_replay(rid: str):
 @router.get("/runs/{rid}/report.{ext}", summary="Обоснование DOCX, таблица XLSX или запрос КП")
 async def get_report(rid: str, ext: str):
     run = _run(rid)
-    kinds = {"docx": (report.docx, DOCX), "xlsx": (report.xlsx, XLSX),
+    kinds = {"docx": (report.docx, DOCX), "public.docx": (lambda r: report.docx(r, public=True), DOCX), "xlsx": (report.xlsx, XLSX),
              "rfq.docx": (lambda r: report.rfq(r, settings.org()), DOCX)}
     if ext not in kinds:
-        raise HTTPException(404, "Форматы: docx, xlsx, rfq.docx")
+        raise HTTPException(404, "Форматы: docx, public.docx, xlsx, rfq.docx")
     make, mime = kinds[ext]
     return Response(make(run), media_type=mime,
-                    headers={"Content-Disposition": f'attachment; filename="{report.filename(run, ext.split(".")[-1])}"'})
+                    headers={"Content-Disposition": f'attachment; filename="{report.filename(run, ext.split(".")[-1], "-public" if ext.startswith("public") else "")}"'})
 
 
 @router.get("/runs/{rid}/items/{pos}/analogs", summary="Облако похожих товаров и справочная оценка")

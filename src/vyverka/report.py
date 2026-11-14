@@ -49,6 +49,24 @@ def source_line(o: Offer) -> str:
     return f"{o.source_title}: «{o.title}», цена на {seen}"
 
 
+def public_title(o: Offer) -> str:
+    return "коммерческое предложение" if o.kind == "offer" else f"«{o.title[:90]}»"
+
+
+def public_source_line(o: Offer) -> str:
+    """Публикуемое обоснование не называет поставщиков (у МФТИ — п. 7 Положения о закупке): остаются реквизиты
+    документа и вид источника, но не продавец, его сайт и ссылка."""
+    seen = o.evidence.fetched_at.strftime("%d.%m.%Y")
+    if o.kind == "contract":
+        d = o.doc_date.strftime("%d.%m.%Y") if o.doc_date else "дата не указана"
+        fine = {True: "неустойки начислялись", False: "неустойки не начислялись"}.get(o.penalties, "сведения о неустойках в карточке нет")
+        return f"Исполненный контракт № {o.doc_number} от {d}; {fine}; источник — {o.source_title}, копия страницы от {seen}"
+    if o.kind == "offer":
+        return f"Коммерческое предложение, получено {seen}"
+    kind = {"marketplace": "Предложение на маркетплейсе", "catalog": "Публичная оферта продавца"}.get(o.kind, "Открытый источник")
+    return f"{kind}: «{o.title}», цена на {seen}"
+
+
 def price_note(o: Offer, unit_price: float | None, factor: float | None) -> str:
     """У контракта прошлых лет видна цена до индексации; месяцы и коэффициент — в строке «Приведение»."""
     if not unit_price or not factor or abs(factor - 1) < 1e-6:
@@ -129,7 +147,8 @@ def xlsx(run: Run) -> bytes:
                          f"=IF(COUNT({rng})>1,ROUND({std}/{mean}*100,2),0)" if len(prices) > 1 else 0]
             if c.status == "ok":
                 p_col = get_column_letter(4 + n_max + 5)
-                stats[4] = f"=ROUND({mean},2)"
+                by_min = (run.settings.get("method") or {}).get("price") == "min"
+                stats[4] = f"=ROUND(MIN({rng}),2)" if by_min else f"=ROUND({mean},2)"
                 stats[5] = f"=ROUND({p_col}{row}*D{row},2)"
                 sums.append(f"{get_column_letter(4 + n_max + 6)}{row}")
         vals = [r.item.pos, r.item.name, r.item.unit, r.item.qty] + prices + [None] * (n_max - len(prices)) + stats + [
@@ -222,7 +241,7 @@ def _shade(cell, hex_color: str) -> None:
     tc.append(shd)
 
 
-def docx(run: Run) -> bytes:
+def docx(run: Run, public: bool = False) -> bytes:
     doc = Document()
     _font(doc)
     sec = doc.sections[0]
@@ -244,6 +263,11 @@ def docx(run: Run) -> bytes:
         p2 = doc.add_paragraph()
         p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p2.add_run("Закупка " + ", ".join(req)).italic = True
+    if public:
+        p3 = doc.add_paragraph()
+        p3.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p3.add_run("Версия для размещения: наименования поставщиков, представивших ценовую информацию, "
+                   "не указываются (положение о закупке заказчика)").italic = True
 
     doc.add_paragraph(
         legal_basis(run.settings.get("org") or org()) + " "
@@ -254,7 +278,9 @@ def docx(run: Run) -> bytes:
         "Цены контрактов прошлых лет приведены к текущему уровню индексом потребительских цен Росстата; "
         "у каждой такой цены указаны исходная цена и коэффициент. "
         "Совокупность цен признаётся однородной при коэффициенте вариации V ≤ 33 %; "
-        "цена единицы — средняя арифметическая однородной совокупности.")
+        + ("цена единицы — минимальная из цен однородной совокупности (п. 8.2 положения о закупке)."
+           if (run.settings.get("method") or {}).get("price") == "min" else
+           "цена единицы — средняя арифметическая однородной совокупности."))
 
     if run.settings.get("ai"):
         doc.add_paragraph(
@@ -318,25 +344,28 @@ def docx(run: Run) -> bytes:
         para.add_run(f"Позиция {r.item.pos}. {r.item.name}. ").bold = True
         para.add_run(r.calc.message)
         nameless = [o for o in used(r) if o.kind == "contract" and not o.supplier]
-        if nameless:
+        if nameless and not public:
             para.add_run(f" У {plural(len(nameless), 'контракта', 'контрактов', 'контрактов')} поставщик в источнике "
                          "не указан: это разные контракты (номера ниже), но различие поставщиков не подтверждено.")
         for i, o in enumerate(used(r), 1):
             d = next(x for x in r.decisions if x.offer_id == o.id)
             line = doc.add_paragraph()
             line.paragraph_format.left_indent = Cm(0.8)
-            line.add_run(f"Ц{i} = {money(d.unit_price)}{price_note(o, d.unit_price, d.factor)} — {source_line(o)}"
+            line.add_run(f"Ц{i} = {money(d.unit_price)}{price_note(o, d.unit_price, d.factor)} — "
+                         f"{public_source_line(o) if public else source_line(o)}"
                          f"{source_price(o, d)}. ")
             extra = [x[1] for x in d.reasons if x[0] in ("modification", "equivalent")]
             if extra:
                 line.add_run(extra[0][0].upper() + extra[0][1:] + ". ")
             by_ai = [c for c in d.checks if c.via == "ai"]
-            if by_ai:
+            if by_ai and not public:
                 line.add_run("Найдено моделью по цитате: " + "; ".join(f"{c.name} — «{c.quote}»" for c in by_ai) + ". ").italic = True
             if d.normalized_note:
                 line.add_run(f"Приведение: {d.normalized_note}. ").italic = True
             rn = (o.meta or {}).get("rnp")
-            if rn and rn["status"] == "clean":
+            if public:
+                pass
+            elif rn and rn["status"] == "clean":
                 line.add_run(f"В реестре недобросовестных поставщиков ЕИС не значится (проверено "
                              f"{rn['checked_at'][8:10]}.{rn['checked_at'][5:7]}.{rn['checked_at'][:4]}). ")
             elif rn and rn["status"] == "unknown":
@@ -346,15 +375,17 @@ def docx(run: Run) -> bytes:
             if d.override:
                 line.add_run(f"Решение пользователя{' ' + d.override['by'] if d.override.get('by') else ''}: "
                              f"{d.override['comment']}. ").italic = True
-            link = line.add_run(o.url)
-            link.font.size = Pt(8)
-            link.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
+            if not public:
+                link = line.add_run(o.url)
+                link.font.size = Pt(8)
+                link.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
         gone = [(o, d) for o in r.offers for d in r.decisions if d.offer_id == o.id and d.override
                 and d.override["action"] == "exclude"]
         for o, d in gone:
             line = doc.add_paragraph()
             line.paragraph_format.left_indent = Cm(0.8)
-            line.add_run(f"Исключено пользователем: «{o.title[:90]}» — {d.override['comment']}.").italic = True
+            name = public_title(o) if public else f"«{o.title[:90]}»"
+            line.add_run(f"Исключено пользователем: {name} — {d.override['comment']}.").italic = True
         if r.estimate:
             e = r.estimate
             line = doc.add_paragraph()
@@ -376,7 +407,9 @@ def docx(run: Run) -> bytes:
             "индексу из настроек организации. После публикации индекса расчёт стоит повторить.").italic = True
     doc.add_paragraph()
     doc.add_paragraph(f"Расчёт выполнен {run.created_at:%d.%m.%Y в %H:%M}, идентификатор {run.id}. "
-                      "Копии страниц-источников сохранены с контрольными суммами SHA-256 и приложены к журналу расчёта.")
+                      "Копии страниц-источников сохранены с контрольными суммами SHA-256 и приложены к журналу расчёта."
+                      + (" Полная версия с наименованиями поставщиков и ссылками на источники хранится у заказчика "
+                         "вместе с журналом расчёта." if public else ""))
     o = run.settings.get("org") or org()
     who = o.get("executor") or "____________________"
     role = o.get("position") or "Ответственный за расчёт"
@@ -453,6 +486,6 @@ def json_trace(run: Run) -> bytes:
     return run.model_dump_json(indent=2).encode("utf-8")
 
 
-def filename(run: Run, ext: str) -> str:
+def filename(run: Run, ext: str, suffix: str = "") -> str:
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
-    return f"nmck-{run.id}-{stamp}.{ext}"
+    return f"nmck-{run.id}-{stamp}{suffix}.{ext}"

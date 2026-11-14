@@ -25,6 +25,7 @@
       <summary class="btn"><svg class="ic"><use href="#i-down"/></svg>Скачать</summary>
       <div class="menu-list">
         <a href="/runs/{{ run.id }}/report.docx"><b>Обоснование НМЦД</b><i>DOCX, для подписи</i></a>
+        <a href="/runs/{{ run.id }}/report.public.docx"><b>Обоснование для размещения</b><i>DOCX без наименований поставщиков</i></a>
         <a href="/runs/{{ run.id }}/report.xlsx"><b>Расчёт</b><i>XLSX с формулами</i></a>
         <a href="/runs/{{ run.id }}/report.json"><b>Журнал</b><i>JSON, все решения и коды</i></a>
         <a href="/api/v1/runs/{{ run.id }}/replay" target="_blank" rel="noopener"><b>Проверка воспроизводимости</b><i>пересчёт без сети, сверка снимков по SHA-256</i></a>

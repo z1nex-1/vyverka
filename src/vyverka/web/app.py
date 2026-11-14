@@ -251,6 +251,7 @@ async def download(rid: str, ext: str):
         raise HTTPException(404)
     kinds = {
         "docx": (report.docx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+        "public.docx": (lambda r: report.docx(r, public=True), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
         "xlsx": (report.xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
         "json": (report.json_trace, "application/json"),
     }
@@ -258,7 +259,7 @@ async def download(rid: str, ext: str):
         raise HTTPException(404)
     make, mime = kinds[ext]
     return Response(make(run), media_type=mime,
-                    headers={"Content-Disposition": f'attachment; filename="{report.filename(run, ext)}"'})
+                    headers={"Content-Disposition": f'attachment; filename="{report.filename(run, ext.split(".")[-1], "-public" if ext.startswith("public") else "")}"'})
 
 
 def add_kp(run: Run, res, supplier: str, price: float, doc: str = "", note: str = "") -> Offer:

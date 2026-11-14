@@ -142,14 +142,17 @@
   <form action="/settings/rules/{{ g.part }}" method="post" class="adm-form params">
     {% for f in g.fields %}
     <div class="param {{ 'is-changed' if f.changed }}">
-      {% if f.type == "bool" %}
+      {% if f.type == "str" %}
+      <label for="p-{{ g.part }}-{{ f.key }}">{{ f.label }}</label>
+      <select id="p-{{ g.part }}-{{ f.key }}" name="{{ f.key }}">{% for v, t in f.min %}<option value="{{ v }}" {{ "selected" if v == f.value }}>{{ t }}</option>{% endfor %}</select>
+      {% elif f.type == "bool" %}
       <label class="check big"><input type="checkbox" name="{{ f.key }}" value="1" {{ "checked" if f.value }}> {{ f.label }}</label>
       {% else %}
       <label for="p-{{ g.part }}-{{ f.key }}">{{ f.label }}</label>
       <input id="p-{{ g.part }}-{{ f.key }}" type="number" name="{{ f.key }}" value="{{ f.value }}" min="{{ f.min }}" max="{{ f.max }}" step="{{ f.step }}">
       {% endif %}
       <p class="hint">{{ f.hint }}</p>
-      <p class="def">{% if f.changed %}<b>изменено</b> · {% endif %}по умолчанию {{ ("да" if f.factory else "нет") if f.type == "bool" else ("как «Минимум цен»" if f.factory is none else (f.factory | string | replace(".", ","))) }}</p>
+      <p class="def">{% if f.changed %}<b>изменено</b> · {% endif %}по умолчанию {{ ("да" if f.factory else "нет") if f.type == "bool" else (f.factory_label if f.type == "str" else ("как «Минимум цен»" if f.factory is none else (f.factory | string | replace(".", ",")))) }}</p>
     </div>
     {% endfor %}
     {% if g.cpi is defined %}
